@@ -77,8 +77,9 @@ class PSOSolver(object):
             self.p_best = torch.where(fitness > self.p_best, fitness, self.p_best)  # 更新每个粒子的最佳函数值
             self.p_best_position = torch.where(fitness > self.p_best, self.position.T, self.p_best_position.T).T  # 更新每个粒子的最佳位置对应的参数值
             g_best_index = torch.argmax(self.p_best)  # 全局最佳位置对应的粒子索引
-            self.g_best = self.p_best[g_best_index]   # 更新全局最佳位置
-            self.g_best_position = self.position[g_best_index]  # 全局最佳位置对应的参数值
+            if self.p_best[g_best_index] > self.g_best:
+                self.g_best = self.p_best[g_best_index]   # 更新全局最佳位置
+                self.g_best_position = self.position[g_best_index]  # 全局最佳位置对应的参数值
 
             # 更新粒子位置和速度
             r1 = torch.rand(self.p_num, self.d_num, device=self.device)
