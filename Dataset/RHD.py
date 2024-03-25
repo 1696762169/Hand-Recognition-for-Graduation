@@ -23,7 +23,7 @@ class RHDDatasetItem(object):
         # 深度图像
         self.depth = Image.open(os.path.join(self.data_root, 'depth', self.img_name))
         self.depth = np.array(self.depth, dtype=np.int32)
-        self.depth = self.depth[:, :, 0] * 256 + self.depth[:, :, 1]  # 深度值范围 [0, 65535]
+        self.depth = (self.depth[:, :, 0] * 256 + self.depth[:, :, 1]) / 65536.0  # 深度值归一化到 [0, 1]
         # 分类掩码
         self.mask = Image.open(os.path.join(self.data_root,'mask', self.img_name))
         self.mask = np.array(self.mask, dtype=np.int8)
