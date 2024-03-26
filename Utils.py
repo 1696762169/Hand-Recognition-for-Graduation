@@ -27,3 +27,7 @@ class Utils(object):
     @staticmethod
     def get_time_str():
         return time.strftime('%Y-%m-%d %H-%M-%S', time.localtime(time.time()))
+    
+    @staticmethod
+    def get_root_path():
+        return os.path.dirname(os.path.abspath(__file__))
