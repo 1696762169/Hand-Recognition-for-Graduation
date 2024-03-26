@@ -35,4 +35,4 @@ if __name__ == '__main__':
 
     model = HandModel()
     model.show()
-    
+        # model.test()

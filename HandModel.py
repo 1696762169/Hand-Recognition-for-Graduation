@@ -1,10 +1,15 @@
 import os
 import numpy as np
 import site
+from enum import Enum
+import time
+import threading
+import math
 
 from glass_engine import *
 from glass_engine.GlassEngineConfig import GlassEngineConfig
 from glass_engine.Geometries import *
+from glass_engine.Lights import *
 from glass_engine.Renderers import ForwardRenderer
 from glass_engine.Screens import QtScreen
 from glass import sampler2D, ShaderProgram
@@ -36,10 +41,6 @@ class DepthRenderer(ForwardRenderer):
             os.path.join(Utils.get_root_path(), "Shader/depth_rendering.fs")
         )
 
-        program["DirLights"].bind(self.scene.dir_lights)
-        program["PointLights"].bind(self.scene.point_lights)
-        program["SpotLights"].bind(self.scene.spot_lights)
-
         # 设置深度 范围
         program["depth_min"] = self.depth_min
         program["depth_max"] = self.depth_max
@@ -54,20 +55,113 @@ class DepthRenderer(ForwardRenderer):
         self.draw_opaque()
         return self._should_update or sampler2D._should_update
 
+class HandColor(Enum):
+    YELLOW = glm.vec3(1, 1, 0)
+    RED = glm.vec3(1, 0, 0)
+    GREEN = glm.vec3(0, 1, 0)
+    BLUE = glm.vec3(0, 0, 1)
 
 class HandModel(object):
     def __init__(self):
         self.scene = Scene()
+        light = DirLight()
+        light.pitch = -45
+        light.yaw = 45
+        self.scene.add(light)
 
-        self.sphere = Cylinder()
-        self.sphere.position = glm.vec3(0, 5, 0)
-        self.scene.add(self.sphere)
+        self.__init_model()
 
         self.camera = Camera()
         self.camera.position = glm.vec3(0, 0, 0)
         self.screen: QtScreen = self.camera.screen
-        self.screen.renderer = DepthRenderer(0, 10)
         self.scene.add(self.camera)
 
-    def show(self):
+    def show(self, show_color=False):
+        self.screen.renderer = ForwardRenderer() if show_color else DepthRenderer(4, 6)
         self.screen.show()
+
+    def __init_model(self):
+        self.hand = SceneNode()
+
+        # 创建手掌
+        palm_height = 1.5    # 手掌高度
+        palm_width = 2.0     # 手掌宽度
+        palm_thickness = 0.5    # 手掌厚度与手掌宽度的比例  
+        self.palm = Cylinder(radius=palm_width / 2, height=palm_height, color=HandColor.YELLOW.value)
+        self.hand.add_child(self.palm)
+        self.palm.scale.y = palm_thickness
+        st1 = SphericalCapTop(height=palm_height / 5, color=HandColor.RED.value)
+        self.palm.add_child(st1)
+        st1.position.z = palm_height
+        st2 = SphericalCapTop(height=palm_height / 5, color=HandColor.RED.value)
+        self.palm.add_child(st2)
+        st2.pitch = 180
+
+        # 创建四根手指
+        finger_length = 0.5  # 手指长度
+        finger_diameter = 0.35   # 手指直径
+        finger_length_scale = [0.9, 1.0, 0.9, 0.7]  # 手指长度比例
+        finger_diameter_scale = [0.95, 1.0, 0.95, 0.85]  # 手指粗细比例
+        self.fingers = []
+
+        for i in range(4):
+            finger = Sphere(radius=finger_diameter / 2, color=HandColor.GREEN.value)
+            pre_joint = finger
+            for j in range(3):
+                knuckle = Cylinder(radius=finger_diameter / 2, height=finger_length, color=HandColor.BLUE.value)
+                pre_joint.add_child(knuckle)
+                knuckle.position.z = finger_diameter / 8
+                joint = Sphere(radius=finger_diameter / 2, color=HandColor.GREEN.value)
+                knuckle.add_child(joint)
+                joint.position.z = finger_length + finger_diameter / 8
+
+                pre_joint = joint
+
+            # 计算手指位置
+            finger.position.x = (palm_width - finger_diameter) * (i / 3 - 0.5)
+            finger.position.z = palm_height * 1.1
+            finger.scale.z = finger_length_scale[i]
+            finger.scale.x = finger_diameter_scale[i]
+            finger.scale.y = finger_diameter_scale[i]
+
+            self.hand.add_child(finger)
+            self.fingers.append(finger)
+
+        # 创建大拇指
+        thumb_length = finger_length * 0.8   # 大拇指长度
+        thumb_diameter = finger_diameter * 1.2   # 大拇指直径
+        self.thumb = SceneNode()
+        self.hand.add_child(self.thumb)
+        muscle_length = palm_height * 0.8   # 大拇指肌肉长度
+        muscle_offset = palm_width / 2 * 1.2    # 大拇指肌肉横向偏移
+        muscle_diameter = palm_thickness * palm_width * 0.7  # 大拇指肌肉直径
+        self.thumb_muscle = Sphere(radius=muscle_diameter / 2, color=HandColor.RED.value)
+        self.thumb.add_child(self.thumb_muscle)
+        self.thumb_muscle.scale.z = muscle_length / muscle_diameter
+        self.thumb_muscle.position.x = -muscle_offset
+        self.thumb_muscle.position.z = palm_height * 0.4
+        self.thumb_muscle.roll = -20
+
+        self.thumb_joint = Sphere(radius=thumb_diameter / 2, color=HandColor.GREEN.value)
+        self.thumb_muscle.add_child(self.thumb_joint)
+        self.thumb_joint.position.z = self.thumb_muscle.radius * 0.9
+        self.thumb_joint.scale.z = muscle_diameter / muscle_length
+        pre_joint = self.thumb_joint
+        for i in range(2):
+            knuckle = Cylinder(radius=thumb_diameter / 2, height=thumb_length, color=HandColor.BLUE.value)
+            pre_joint.add_child(knuckle)
+            joint = Sphere(radius=thumb_diameter / 2, color=HandColor.GREEN.value)
+            knuckle.add_child(joint)
+            joint.position.z = thumb_length + thumb_diameter / 8
+
+            pre_joint = joint
+
+        self.thumb.yaw = 0
+        self.thumb_muscle.position.x = -math.sqrt(
+            math.pow(muscle_offset * math.cos(math.radians(self.thumb.yaw)), 2) + 
+            math.pow(muscle_offset * palm_thickness * math.sin(math.radians(self.thumb.yaw)), 2))
+
+        self.hand.position = glm.vec3(0, 5, 0)
+
+        self.scene.add(self.hand)
+
