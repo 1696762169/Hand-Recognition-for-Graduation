@@ -5,6 +5,7 @@ from Config import Config
 from PSO import PSOSolver
 from Utils import Utils
 from HandModel import HandModel
+import matplotlib.pyplot as plt
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -34,5 +35,12 @@ if __name__ == '__main__':
     # print("result:", result)
 
     model = HandModel()
-    model.show()
-        # model.test()
+    # model.show()
+    # model.show(True)
+    picture = model.render()
+    print(picture.shape)
+    print(picture.dtype)
+    picture = picture[:, :, 0] / 256.0
+    plt.imshow(picture, cmap='gray')
+    plt.axis('off')
+    plt.show()

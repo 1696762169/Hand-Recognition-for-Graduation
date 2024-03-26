@@ -72,13 +72,23 @@ class HandModel(object):
         self.__init_model()
 
         self.camera = Camera()
+        self.camera.fov = 30
         self.camera.position = glm.vec3(0, 0, 0)
         self.screen: QtScreen = self.camera.screen
+        self.screen.resize(320, 320)    # 调整屏幕大小
         self.scene.add(self.camera)
 
     def show(self, show_color=False):
         self.screen.renderer = ForwardRenderer() if show_color else DepthRenderer(4, 6)
         self.screen.show()
+
+    def render(self) -> np.ndarray:
+        self.screen.renderer = DepthRenderer(4, 6)
+        # 因为不明原因 需要仿照show方法来创建OpenGL上下文 才能正常运行
+        self.screen.__class__.__base__.show(self.screen)
+        self.screen.close()   # 创建窗口后直接退出
+        self.screen.capture()
+        return self.camera.take_photo(None, (0, 0, 320, 320))
 
     def __init_model(self):
         self.hand = SceneNode()
@@ -165,3 +175,4 @@ class HandModel(object):
 
         self.scene.add(self.hand)
 
+    # def test(self):
