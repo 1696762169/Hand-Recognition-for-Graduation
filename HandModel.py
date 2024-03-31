@@ -175,4 +175,46 @@ class HandModel(object):
 
         self.scene.add(self.hand)
 
+    def set_pose(self, pose: np.ndarray):
+        """
+        设置手部姿态参数
+        :param pose: 姿态参数，shape=(27,)
+        0-2: 整体位置
+        3-5: 整体姿态旋转角度
+        6-26: 预留
+        """
+        self.set_position(pose[0], pose[1], pose[2])
+        self.set_rotation(pose[3], pose[4], pose[5])
+
+    def set_position(self, x: float, y: float, z: float):
+        self.hand.position = glm.vec3(x, y, z)
+    def set_rotation(self, pitch: float, yaw: float, roll: float):
+        self.hand.pitch = pitch
+        self.hand.yaw = yaw
+        self.hand.roll = roll
     # def test(self):
+    #     thread = threading.Thread(target=self.__test)
+    #     thread.daemon = True
+    #     thread.start()
+
+    # def __test(self):
+    #     while True:
+    #         self.thumb.yaw += 1
+    #         self.screen.show()
+    #         time.sleep(0.03)
+        
+    @staticmethod
+    def get_bounds():
+        """
+        获取手部姿态参数范围
+        """
+        return [
+            (-5, 5), (-5, 5), (-5, 5),                  # 整体位置
+            (-180, 180), (-180, 180), (-180, 180),      # 整体姿态旋转角度
+            # 预留
+            (0, 1), (0, 1), (0, 1), (0, 1), (0, 1), 
+            (0, 1), (0, 1), (0, 1), (0, 1), (0, 1), 
+            (0, 1), (0, 1), (0, 1), (0, 1), (0, 1), 
+            (0, 1), (0, 1), (0, 1), (0, 1), (0, 1), 
+            (0, 1),
+        ]
