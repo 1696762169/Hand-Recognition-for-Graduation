@@ -1,5 +1,6 @@
 import os
 import PIL.Image as Image
+import cv2
 import pickle
 import numpy as np
 import torch
@@ -17,16 +18,15 @@ class RHDDatasetItem(object):
         self.kp_coord_xyz = anno['xyz']  # 42 个关键点的 3D XYZ 坐标，单位为 mm (42, 3)
         self.camera_intrinsic_matrix = anno['K']  # 相机内参矩阵 (3, 3)
 
-        # RGB 图像
-        self.color = Image.open(os.path.join(self.data_root, 'color', self.img_name))
-        self.color = np.array(self.color, dtype=np.float32) / 255.0   # 图像归一化到 [0, 1]
+        # YUV 图像
+        self.color = cv2.imread(os.path.join(self.data_root, 'color', self.img_name), cv2.IMREAD_UNCHANGED)
+        self.color = cv2.cvtColor(self.color, cv2.COLOR_BGR2YUV)
+        # self.color = self.color.astype(np.float32) / 256.0  # 图像归一化到 [0, 1]
         # 深度图像
-        self.depth = Image.open(os.path.join(self.data_root, 'depth', self.img_name))
-        self.depth = np.array(self.depth, dtype=np.int32)
-        self.depth = (self.depth[:, :, 0] * 256 + self.depth[:, :, 1]) / 65536.0  # 深度值归一化到 [0, 1]
+        self.depth = cv2.imread(os.path.join(self.data_root, 'depth', self.img_name), cv2.IMREAD_UNCHANGED)
+        self.depth = (self.depth[:, :, 2] * 256 + self.depth[:, :, 1]) / 65536.0  # 深度值归一化到 [0, 1]
         # 分类掩码
-        self.mask = Image.open(os.path.join(self.data_root,'mask', self.img_name))
-        self.mask = np.array(self.mask, dtype=np.int8)
+        self.mask = cv2.imread(os.path.join(self.data_root,'mask', self.img_name), cv2.IMREAD_UNCHANGED).astype(np.int8)
 
         if device is not None:
             self.color = self.__to_device(self.color, device)
@@ -35,6 +35,10 @@ class RHDDatasetItem(object):
 
     def __to_device(self, array: np.ndarray, device: torch.device) -> torch.Tensor:
         return torch.from_numpy(array).to(device)
+    
+    @property
+    def color_rgb(self) -> np.ndarray:
+        return cv2.cvtColor(self.color, cv2.COLOR_YUV2RGB)
 
 
 class RHDDataset(Dataset):
@@ -66,6 +70,10 @@ class RHDDataset(Dataset):
             return self.shared_list[index]
         else:
             return self.__load_item(index)
+    
+    @property
+    def image_shape(self) -> tuple:
+        return self[0].color.shape[:2]
             
     def __load_annotations(self):
         with open(os.path.join(self.data_root, f"anno_{self.set_type}.pickle"), 'rb') as f:

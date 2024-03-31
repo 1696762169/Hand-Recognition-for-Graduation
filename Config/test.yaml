@@ -4,3 +4,13 @@ dataset:
   root: 'd:\Python\dataset\RHD\'    # 数据集根目录路径
   split_type: 'training'            # 使用的数据集划分部分
   params: False                     # 数据集参数 应该与Dataset类的关键词参数对应
+  # params:
+    # to_tensor: False    # 是否转为tensor
+
+segmentation:    # 分割参数
+  seed_threshold: 0.5    # 种子点阈值
+  blob_threshold: 0.15    # 块阈值
+
+evaluation:    # 评估参数
+  depth_max_diff: 4.0    # 最大深度差值dM
+  depth_match_threshold: 1.0    # 判断两者匹配的深度差值阈值

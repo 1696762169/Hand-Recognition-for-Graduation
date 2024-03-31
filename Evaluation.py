@@ -2,11 +2,13 @@ import torch
 import numpy as np
 from torch import Tensor as tensor
 
+from Config import Config
 from Dataset.RHD import RHDDataset, RHDDatasetItem
 from HandModel import HandModel
 
 class Evaluation:
-    def __init__(self, dataset: RHDDataset, models: list[HandModel]):
+    def __init__(self, config: Config, dataset: RHDDataset, models: list[HandModel]):
+        self.config = config
         self.dataset = dataset
         self.models = models
         self.model_num = len(models)
@@ -31,3 +33,7 @@ class Evaluation:
         :param depth_h: 深度图 (H, W) 范围 [0, 1]
         :return: 评估值
         """
+
+        # D(O, h, C)
+        depth_diff = torch.min(torch.abs(depth_h - sample.depth), self.config.depth_max_diff)
+        depth_match = (depth_diff < self.config.depth_match_threshold)

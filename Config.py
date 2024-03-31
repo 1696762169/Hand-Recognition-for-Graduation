@@ -16,6 +16,16 @@ class Config(object):
         self.dataset_root = dataset['root']
         self.dataset_split = dataset['split_type']
         self._dataset = self.__create_dataset()
+
+        # 分割算法参数
+        segmentation = self.config['segmentation']
+        self.seg_seed_threshold = segmentation['seed_threshold']
+        self.seg_blob_threshold = segmentation['blob_threshold']
+
+        # 评价参数
+        evaluation = self.config['evaluation']
+        self.depth_max_diff = evaluation['depth_max_diff']
+        self.depth_match_threshold = evaluation['depth_match_threshold']
         
     def __create_dataset(self):
         params = {}
