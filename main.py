@@ -56,7 +56,15 @@ if __name__ == '__main__':
     # test_mask(dataset)
 
     seg = SkinColorSegmentation(dataset, config)
-    seg.load_trained_model(-1, True)
+    seg.segment(dataset[0])
+    # seg_model = seg.load_trained_model(-1, True)
+    # seg_model = seg.load_trained_model()
+    # hist = torch.histc(seg_model.flatten(), bins=256, min=0.02, max=1)
+    # plt.hist(hist.cpu().numpy(), bins=256)
+    # plt.show()
+    # print("{:.6f} {:.6f}".format(float(seg_model.max()), float(seg_model.min())))
+    # print("大于种子阈值的颜色数量：", seg_model[seg_model >= config.seg_seed_threshold].numel())
+    # print("大于区域阈值的颜色数量：", seg_model[seg_model >= config.seg_blob_threshold].numel())
 
     # particle_num = 10
     # dim_num = 27

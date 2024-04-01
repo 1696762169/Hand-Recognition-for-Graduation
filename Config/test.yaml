@@ -8,8 +8,9 @@ dataset:
     # to_tensor: False    # 是否转为tensor
 
 segmentation:    # 分割参数
-  seed_threshold: 0.5    # 种子点阈值
-  blob_threshold: 0.15    # 块阈值
+  seed_threshold: 0.4    # 种子点阈值
+  blob_threshold: 0.1    # 块阈值
+  min_region_size: 100    # 最小区域大小
 
 evaluation:    # 评估参数
   depth_max_diff: 4.0    # 最大深度差值dM
