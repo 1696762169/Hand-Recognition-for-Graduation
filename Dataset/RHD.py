@@ -12,6 +12,7 @@ class RHDDatasetItem(object):
         self.img_index = img_index
         self.img_name = str.format("{0:05d}.png", self.img_index)
         self.data_root = data_root
+        self.device = device
 
         self.kp_coord_uv = anno['uv_vis'][:, :2]  # 42 个关键点的 2D UV 坐标，单位为像素 (42, 2)
         self.kp_visible = (anno['uv_vis'][:, 2] == 1)  # 42 个关键点的可见性标志，1 为可见，0 为不可见
@@ -38,13 +39,16 @@ class RHDDatasetItem(object):
     
     @property
     def color_rgb(self) -> np.ndarray:
-        return cv2.cvtColor(self.color, cv2.COLOR_YUV2RGB)
+        if self.device is None:
+            return cv2.cvtColor(self.color, cv2.COLOR_YUV2RGB)
+        else:
+            return cv2.cvtColor(self.color.cpu().numpy(), cv2.COLOR_YUV2RGB)
 
 
 class RHDDataset(Dataset):
     def __init__(self,
                  data_root: str,
-                 set_type: Literal["training", "evaluation"] = 'training',
+                 set_type: Literal["train", "test"] = 'train',
                  *,
                  to_tensor: bool = True,
                  device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),

@@ -2,8 +2,12 @@ import os
 import numpy as np
 import cv2
 import torch
+from torch.utils.data import DataLoader
 import argparse
 import matplotlib.pyplot as plt
+import logging
+from tqdm import tqdm
+import time
 
 from Config import Config
 from PSO import PSOSolver
@@ -42,21 +46,44 @@ def test_mask(dataset: RHDDataset):
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-    # Utils.set_log_file(f"Log/log {Utils.get_time_str()}.txt")
+    # 解析命令行参数
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='test', help='config file name')
+    parser.add_argument('--config', type=str, default='iso', help='config file name')
     args = parser.parse_args()
+
+    # 配置日志
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s - %(levelname)s - %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        handlers=[
+                            # logging.FileHandler(f"Log/log {Utils.get_time_str()}.txt"),
+                            logging.StreamHandler()
+                        ])
+    
 
     config_file = str(args.config)
     config = Config(config_file)
     dataset = config.dataset
-    sample =dataset[0]
+
+    # data_loader = DataLoader(dataset, batch_size=5, shuffle=False, num_workers=0, collate_fn=dataset.collate_fn)
+    batch_index = 0
+    timer = time.perf_counter()
+    # for batch in data_loader:
+    #     logging.info(f"batch: {batch_index} time: {time.perf_counter() - timer}")
+    #     batch_index += 1
+    #     if batch_index > 50:
+    #         break
+    # for i in tqdm(range(len(dataset))):
+    for i in range(len(dataset)):
+        sample = dataset[i]
+        if i > 250:
+            break
+    logging.info(f"time: {time.perf_counter() - timer}")
+    
     # test_mask(dataset)
 
-    seg = SkinColorSegmentation(dataset, config)
-    seg.segment(dataset[0])
+    # seg = SkinColorSegmentation(dataset, config)
+    # seg.segment(sample)
     # seg_model = seg.load_trained_model(-1, True)
     # seg_model = seg.load_trained_model()
     # hist = torch.histc(seg_model.flatten(), bins=256, min=0.02, max=1)

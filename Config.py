@@ -1,6 +1,7 @@
 import os
 import yaml
 from Dataset.RHD import RHDDataset
+from Dataset.IsoGD import IsoGDDataset
 
 class Config(object):
     def __init__(self, config_path: str):
@@ -11,7 +12,7 @@ class Config(object):
 
         # 数据集参数
         dataset = self.config['dataset']
-        self.dataset_name = dataset['type']
+        self.dataset_type = dataset['type']
         self.dataset_name = dataset['name']
         self.dataset_root = dataset['root']
         self.dataset_split = dataset['split_type']
@@ -21,6 +22,7 @@ class Config(object):
         segmentation = self.config['segmentation']
         self.seg_seed_threshold = segmentation['seed_threshold']
         self.seg_blob_threshold = segmentation['blob_threshold']
+        self.seg_min_region_size = segmentation['min_region_size']
 
         # 评价参数
         evaluation = self.config['evaluation']
@@ -33,10 +35,12 @@ class Config(object):
             params = self.config['dataset']['params']
             params = params if isinstance(params, dict) else {}
         
-        if self.dataset_name == 'RHD':
+        if self.dataset_type == 'RHD':
             return RHDDataset(self.dataset_root, self.dataset_split, **params)
+        elif self.dataset_type == 'IsoGD':
+            return IsoGDDataset(self.dataset_root, self.dataset_split, **params)
         else:
-            raise ValueError('Unsupported dataset type: {}'.format(self.dataset_name))
+            raise ValueError('Unsupported dataset type: {}'.format(self.dataset_type))
 
     @property
     def dataset(self):
