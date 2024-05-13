@@ -9,9 +9,13 @@ dataset:
     buffer_size: 0    # 数据缓存大小
 
 segmentation:    # 分割参数
-  seed_threshold: 0.4    # 种子点阈值
-  blob_threshold: 0.1    # 块阈值
-  min_region_size: 100    # 最小区域大小
+  type: 'RDF'    # 分割算法类型
+  params:
+    n_estimators: 300    # 决策树数量
+    max_depth: 20    # 决策树最大深度
+    min_samples_split: 2    # 划分节点最小样本数
+    min_samples_leaf: 1    # 叶子节点最小样本数
+    # random_state: 0    # 随机种子
 
 evaluation:    # 评估参数
   depth_max_diff: 4.0    # 最大深度差值dM

@@ -2,6 +2,9 @@ import os
 from tqdm import tqdm
 import torch
 import torch.nn.functional as F
+from sklearn.ensemble import RandomForestClassifier
+
+
 from Dataset.RHD import RHDDataset, RHDDatasetItem
 from Config import Config
 from matplotlib import pyplot as plt
@@ -160,3 +163,26 @@ class SkinColorSegmentation(object):
 
     def __have_trained_model(self) -> bool:
         return os.path.exists(self.model_path)
+    
+class RDFSegmentor(object):
+    """
+    随机森林分割方法
+    """
+    def __init__(self, config: Config,
+                 *,
+                 n_estimators=3,    # 随机森林的树的数量
+                 max_depth=None,    # 树的最大深度
+                 min_samples_split=2,  # 节点分裂所需的最小样本数
+                 min_samples_leaf=1,   # 叶子节点最少包含的样本数
+                 random_state=None,   # 随机数种子
+                 ):
+        self.classifier = RandomForestClassifier(
+            n_estimators=n_estimators,
+            criterion='entropy', 
+            max_depth=max_depth,
+            min_samples_split=min_samples_split,
+            min_samples_leaf=min_samples_leaf,
+            random_state=random_state,
+            )
+        self.min_samples_split = min_samples_split
+        self.config = config

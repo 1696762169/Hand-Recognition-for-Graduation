@@ -16,32 +16,28 @@ class Config(object):
         self.dataset_name = dataset['name']
         self.dataset_root = dataset['root']
         self.dataset_split = dataset['split_type']
-        self._dataset = self.__create_dataset()
 
         # 分割算法参数
         segmentation = self.config['segmentation']
-        self.seg_seed_threshold = segmentation['seed_threshold']
-        self.seg_blob_threshold = segmentation['blob_threshold']
-        self.seg_min_region_size = segmentation['min_region_size']
+        self.seg_type = segmentation['type']
 
         # 评价参数
         evaluation = self.config['evaluation']
         self.depth_max_diff = evaluation['depth_max_diff']
         self.depth_match_threshold = evaluation['depth_match_threshold']
-        
-    def __create_dataset(self):
-        params = {}
+       
+    def get_dataset_params(self) -> dict:
         if 'params' in self.config['dataset']:
             params = self.config['dataset']['params']
             params = params if isinstance(params, dict) else {}
-        
-        if self.dataset_type == 'RHD':
-            return RHDDataset(self.dataset_root, self.dataset_split, **params)
-        elif self.dataset_type == 'IsoGD':
-            return IsoGDDataset(self.dataset_root, self.dataset_split, **params)
+            return params
         else:
-            raise ValueError('Unsupported dataset type: {}'.format(self.dataset_type))
+            return {}
 
-    @property
-    def dataset(self):
-        return self._dataset
+    def get_seg_params(self) -> dict:
+        if 'params' in self.config['segmentation']:
+            params = self.config['dataset']['params']
+            params = params if isinstance(params, dict) else {}
+            return params
+        else:
+            return {}

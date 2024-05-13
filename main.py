@@ -14,8 +14,9 @@ from PSO import PSOSolver
 from Utils import Utils
 from HandModel import HandModel
 from Evaluation import Evaluation
-from Segmentation.Segmentaion import SkinColorSegmentation
+from Segmentation import SkinColorSegmentation, RDFSegmentor
 from Dataset.RHD import RHDDataset
+from Dataset.IsoGD import IsoGDDataset
 
 def test_mask(dataset: RHDDataset):
     sample = dataset[0]
@@ -44,11 +45,25 @@ def test_mask(dataset: RHDDataset):
 
     plt.show()
 
+def create_dataset(config: Config):
+    params = config.get_dataset_params() 
+    if config.dataset_type == 'RHD':
+        return RHDDataset(config.dataset_root, config.dataset_split, **params)
+    elif config.dataset_type == 'IsoGD':
+        return IsoGDDataset(config.dataset_root, config.dataset_split, **params)
+    else:
+        raise ValueError('Unsupported dataset type: {}'.format(config.dataset_type))
+
+def create_segmentor(config: Config):
+    params = config.get_seg_params()
+    if config.seg_type == 'RDF':
+        return RDFSegmentor(**params)
+
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     # 解析命令行参数
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='iso', help='config file name')
+    parser.add_argument('--config', type=str, default='test', help='config file name')
     args = parser.parse_args()
 
     # 配置日志
@@ -60,26 +75,11 @@ if __name__ == '__main__':
                             logging.StreamHandler()
                         ])
     
-
     config_file = str(args.config)
     config = Config(config_file)
-    dataset = config.dataset
+    dataset = create_dataset(config)
+    segmentor = create_segmentor(config)
 
-    # data_loader = DataLoader(dataset, batch_size=5, shuffle=False, num_workers=0, collate_fn=dataset.collate_fn)
-    batch_index = 0
-    timer = time.perf_counter()
-    # for batch in data_loader:
-    #     logging.info(f"batch: {batch_index} time: {time.perf_counter() - timer}")
-    #     batch_index += 1
-    #     if batch_index > 50:
-    #         break
-    # for i in tqdm(range(len(dataset))):
-    for i in range(len(dataset)):
-        sample = dataset[i]
-        if i > 250:
-            break
-    logging.info(f"time: {time.perf_counter() - timer}")
-    
     # test_mask(dataset)
 
     # seg = SkinColorSegmentation(dataset, config)
