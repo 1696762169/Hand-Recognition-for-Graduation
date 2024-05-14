@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 from typing import Literal
 
 class RHDDatasetItem(object):
-    def __init__(self, img_index: int, anno: dict, data_root: str, device: torch.device) -> None:
+    def __init__(self, img_index: int, anno: dict, data_root: str, device: torch.device, use_modified_depth: bool = False) -> None:
         self.img_index = img_index
         self.img_name = str.format("{0:05d}.png", self.img_index)
         self.data_root = data_root
@@ -24,8 +24,12 @@ class RHDDatasetItem(object):
         self.color = cv2.cvtColor(self.color, cv2.COLOR_BGR2YUV)
         # self.color = self.color.astype(np.float32) / 256.0  # 图像归一化到 [0, 1]
         # 深度图像
-        self.depth = cv2.imread(os.path.join(self.data_root, 'depth', self.img_name), cv2.IMREAD_UNCHANGED)
-        self.depth = (self.depth[:, :, 2] * 256 + self.depth[:, :, 1]) / 65536.0  # 深度值归一化到 [0, 1]
+        if use_modified_depth:
+            self.depth = cv2.imread(os.path.join(self.data_root, 'modified_depth', self.img_name), cv2.IMREAD_GRAYSCALE)
+            self.depth = self.depth / 255.0  # 深度值归一化到 [0, 1]
+        else:
+            self.depth = cv2.imread(os.path.join(self.data_root, 'depth', self.img_name), cv2.IMREAD_UNCHANGED)
+            self.depth = (self.depth[:, :, 2] * 256 + self.depth[:, :, 1]) / 65536.0  # 深度值归一化到 [0, 1]
         # 分类掩码
         self.origin_mask = cv2.imread(os.path.join(self.data_root,'mask', self.img_name), cv2.IMREAD_UNCHANGED).astype(np.int8)
         self.mask = self.origin_mask.copy()
@@ -65,10 +69,12 @@ class RHDDataset(Dataset):
                  set_type: Literal["train", "test"] = 'train',
                  *,
                  to_tensor: bool = True,
+                 use_modified_depth: bool = False,
                  device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
                  shared_list: list = None) -> None:
         self.set_type = set_type
         self.to_tensor = to_tensor
+        self.use_modified_depth = use_modified_depth
         self.device = device
         self.data_root = os.path.join(data_root, set_type)
         self.annotations = self.__load_annotations()
@@ -99,4 +105,4 @@ class RHDDataset(Dataset):
         return annotations
     
     def __load_item(self, index) -> RHDDatasetItem:
-        return RHDDatasetItem(index, self.annotations[index], self.data_root, self.device if self.to_tensor else None)
+        return RHDDatasetItem(index, self.annotations[index], self.data_root, self.device if self.to_tensor else None, self.use_modified_depth)

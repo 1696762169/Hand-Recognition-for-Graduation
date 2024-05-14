@@ -11,6 +11,14 @@
             "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
+        },
+        {
+            "name": "Preprocess Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/Preprocess.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
         }
     ]
 }
