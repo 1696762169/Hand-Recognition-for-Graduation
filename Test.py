@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from Dataset.RHD import RHDDataset
 from Dataset.IsoGD import IsoGDDataset
-from Segmentation import RDFSegmentor
+from Segmentation import RDFSegmentor, DecisionTree
 
 def test_rhd_dataset_depth_range(dataset: RHDDataset):
     """
@@ -167,3 +167,33 @@ def test_depth_feature_mask(dataset: RHDDataset):
 
     plt.tight_layout()
     plt.show()
+
+
+def test_train_tree(dataset: RHDDataset, segmentor: RDFSegmentor) -> DecisionTree:
+    """
+    测试训练一颗决策树
+    """
+    ret = segmentor.train_tree(dataset, 10, 10, 100, 1000)
+    tree = ret.tree
+    # n_nodes = tree.tree_.node_count
+    # children_left = tree.tree_.children_left
+    # children_right = tree.tree_.children_right
+    # feature = tree.tree_.feature
+    # threshold = tree.tree_.threshold
+
+    # # 打印每个节点的决策规则
+    # print("决策树的结构：")
+    # for i in range(n_nodes):
+    #     if children_left[i] != children_right[i]:  # 如果不是叶节点
+    #         print(f"节点 {i}：如果特征 {feature[i]} <= {threshold[i]}, 则进入节点 {children_left[i]}, 否则进入节点 {children_right[i]}")
+    #     else:
+    #         print(f"节点 {i} 是一个叶节点。")
+    return ret
+
+def test_one_tree_predict(dataset: RHDDataset, tree: DecisionTree):
+    """
+    测试一颗决策树的预测效果
+    """
+    sample_idx = np.random.randint(len(dataset))
+    sample = dataset[sample_idx]
+

@@ -47,7 +47,7 @@ def test_mask(dataset: RHDDataset):
     plt.show()
 
 def create_dataset(config: Config):
-    params = config.get_dataset_params() 
+    params = config.get_dataset_params()
     if config.dataset_type == 'RHD':
         return RHDDataset(config.dataset_root, config.dataset_split, **params)
     elif config.dataset_type == 'IsoGD':
@@ -58,7 +58,7 @@ def create_dataset(config: Config):
 def create_segmentor(config: Config):
     params = config.get_seg_params()
     if config.seg_type == 'RDF':
-        return RDFSegmentor(config, **params)
+        return RDFSegmentor(**params)
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -92,6 +92,9 @@ if __name__ == '__main__':
     # Test.test_rhd_dataset_depth_max(dataset)
 
     # Test.test_iso_dataset_depth_range(dataset)
+
+    tree = Test.test_train_tree(dataset, segmentor)
+    Test.test_one_tree_predict(dataset, tree)
 
     # test_mask(dataset)
 

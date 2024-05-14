@@ -98,6 +98,11 @@ class RHDDataset(Dataset):
     @property
     def image_shape(self) -> tuple:
         return self[0].color.shape[:2]
+    
+    @property
+    def pixel_count(self) -> int:
+        shape = self.image_shape
+        return shape[0] * shape[1]
             
     def __load_annotations(self):
         with open(os.path.join(self.data_root, f"anno_{self.set_type}.pickle"), 'rb') as f:
