@@ -187,6 +187,8 @@ class RDFSegmentor(object):
         self.min_samples_split = min_samples_split
         self.config = config
 
+        
+
     @staticmethod
     def get_depth_feature(depth_map: torch.Tensor, u: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
         """
@@ -210,7 +212,7 @@ class RDFSegmentor(object):
                     (grid_y >= 0) & (grid_y < depth_map.shape[1])
 
             # 计算深度特征 无效的深度值设置为最大值 1
-            depth_feature = torch.ones_like(depth_map, dtype=torch.double, device=depth_map.device)
+            depth_feature = torch.ones_like(depth_map, dtype=depth_map.dtype, device=depth_map.device)
             depth_feature[valid] = depth_map[grid_x[valid].int(), grid_y[valid].int()]
             return depth_feature
         

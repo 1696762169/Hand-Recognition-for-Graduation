@@ -16,7 +16,7 @@ class IsoGDDatasetItem(object):
         depth_transform = depth_transform or (lambda x: np.array(x))
 
         # 读取RGB视频
-        self.rgb_frames = []
+        self.rgb_frames: list[torch.Tensor] = []
         cap = cv2.VideoCapture(self.rgb_path)
         while cap.isOpened():
             ret, frame = cap.read()
@@ -26,7 +26,7 @@ class IsoGDDatasetItem(object):
         cap.release()
 
         # 读取深度视频
-        self.depth_frames = []
+        self.depth_frames: list[torch.Tensor] = []
         cap = cv2.VideoCapture(self.depth_path)
         while cap.isOpened():
             ret, frame = cap.read()
@@ -42,9 +42,9 @@ class IsoGDDatasetItem(object):
     def __getitem__(self, index):
         return (self.rgb_frames[index], self.depth_frames[index], self.label)
     
-    def get_rgb_frame(self, index):
+    def get_rgb_frame(self, index) -> torch.Tensor:
         return self.rgb_frames[index]
-    def get_depth_frame(self, index):
+    def get_depth_frame(self, index) -> torch.Tensor:
         return self.depth_frames[index]
 
 class IsoGDDataset(Dataset):
@@ -71,8 +71,13 @@ class IsoGDDataset(Dataset):
                 self.meta_data.append((rgb_path, rgb_path, int(label)))
 
         # 定义transform
+        def default_depth_transform(x):
+            x: np.ndarray = cv2.cvtColor(x, cv2.COLOR_BGR2GRAY)
+            x = x.astype(np.float32) / 255.0
+            return torch.from_numpy(x).float()
+        
         self.rgb_transform = transforms.ToTensor() if to_tensor else None
-        self.depth_transform = transforms.ToTensor() if to_tensor else None
+        self.depth_transform = default_depth_transform if to_tensor else None
 
         self.shared_list = shared_list or {}
         self.buffer_queue = []

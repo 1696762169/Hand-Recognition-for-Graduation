@@ -36,7 +36,7 @@ class Config(object):
 
     def get_seg_params(self) -> dict:
         if 'params' in self.config['segmentation']:
-            params = self.config['dataset']['params']
+            params = self.config['segmentation']['params']
             params = params if isinstance(params, dict) else {}
             return params
         else:

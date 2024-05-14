@@ -85,10 +85,13 @@ if __name__ == '__main__':
     dataset = create_dataset(config)
     segmentor = create_segmentor(config)
 
-    Test.test_depth_feature(dataset)
+    # Test.test_depth_feature(dataset)
     # Test.test_depth_feature_mask(dataset)
     # Test.test_rhd_dataset_mask_count(dataset)
     # Test.test_rhd_dataset_depth_range(dataset)
+    # Test.test_rhd_dataset_depth_max(dataset)
+
+    # Test.test_iso_dataset_depth_range(dataset)
 
     # test_mask(dataset)
 

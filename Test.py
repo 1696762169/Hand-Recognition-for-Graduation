@@ -1,9 +1,13 @@
 # 这个文件中主要是用来进行一些实验的
 import torch
 import numpy as np
+import cv2
+from skimage import exposure
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 from Dataset.RHD import RHDDataset
+from Dataset.IsoGD import IsoGDDataset
 from Segmentation import RDFSegmentor
 
 def test_rhd_dataset_depth_range(dataset: RHDDataset):
@@ -18,8 +22,11 @@ def test_rhd_dataset_depth_range(dataset: RHDDataset):
         # 随机选择几个样本
         sample_idx = np.random.randint(len(dataset))
         sample = dataset[sample_idx]
-        depth = sample.depth.cpu().numpy().flatten()
-        
+        depth = sample.depth.cpu().numpy()
+        # 进行直方图均衡化
+        # cv2.equalizeHist(depth, depth)
+        equ_image = exposure.equalize_hist(depth)
+        depth = equ_image.flatten()
         axe = axes[i // col_num, i % col_num]
         axe.hist(depth, bins=100)
         axe.set_title(f"样本 {sample_idx}\n背景像素数量: {len(depth[depth > 0.999])}")
@@ -57,6 +64,48 @@ def test_rhd_dataset_mask_count(dataset: RHDDataset):
     plt.tight_layout()
     plt.show()
 
+def test_rhd_dataset_depth_max(dataset: RHDDataset):
+    """
+    测试RHD数据集的深度最大值 （除背景外）
+    """
+    depth_max_list = []
+    for i in tqdm(range(len(dataset))):
+        sample = dataset[i]
+        depth = sample.depth.cpu().numpy()
+        depth_max_list.append(depth[depth < 0.99].max())
+
+    # 绘制直方图
+    plt.hist(depth_max_list, bins=256)
+    plt.title("RHD数据集样本深度最大值分布（除背景外）")
+    plt.xlabel("深度最大值")
+    plt.ylabel("样本数量")
+    plt.show()
+
+
+def test_iso_dataset_depth_range(dataset: IsoGDDataset, sample_idx: int = -1):
+    """
+    测试IsoGd数据集的深度分布
+    """
+    sample_idx = np.random.randint(len(dataset)) if sample_idx == -1 else sample_idx
+    sample = dataset[sample_idx]
+    row_num = 4
+    col_num = 8
+    fig, axes = plt.subplots(row_num, col_num, sharex=True, figsize=(20, 10))
+
+    frame_count = min(len(sample), row_num * col_num)
+    for i in range(frame_count):
+        depth = sample.get_depth_frame(i)
+        depth = depth.cpu().numpy().flatten()
+        
+        axe = axes[i // col_num, i % col_num]
+        axe.hist(depth, bins=100)
+        axe.set_title(f"第 {i + 1} 帧\n背景像素数量: {len(depth[depth > 0.999])}")
+    
+    fig.suptitle(f"样本 {sample_idx} 各帧深度分布")
+    plt.tight_layout()
+    plt.show()
+
+
 def test_depth_feature(dataset: RHDDataset):
     """
     测试不同偏移向量下的深度特征直方图
@@ -73,16 +122,16 @@ def test_depth_feature(dataset: RHDDataset):
         u = torch.tensor(uv_list[i][:2])
         v = torch.tensor(uv_list[i][2:])
         feature = RDFSegmentor.get_depth_feature(sample.depth, u, v).cpu()
-        # feature = feature.cpu().numpy().flatten()
+        feature = feature.cpu().numpy().flatten()
         
         # 添加子图
         axe = axes[i//col_num, i%col_num]
         non_zero_count = (np.abs(feature) > 0.001).sum()
-        feature = feature.numpy()[np.where(sample.depth.cpu() < 0.999)].flatten()
+        # feature = feature.numpy()[np.where(sample.depth.cpu() < 0.999)].flatten()
         axe.set_title(f"u: ({u[0]:.2f}, {u[1]:.2f})\nv: ({v[0]:.2f}, {v[1]:.2f})\n非零像素数量: {non_zero_count}")
         axe.hist(feature, bins=100)
         # 设置坐标轴为log
-        # axe.set_yscale('log')
+        axe.set_yscale('log')
 
     fig.suptitle(f"不同偏移向量下的深度特征直方图 样本 {sample_idx}")
     plt.tight_layout()

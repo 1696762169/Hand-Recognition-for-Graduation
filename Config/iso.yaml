@@ -7,16 +7,3 @@ dataset:
   params:
     to_tensor: True    # 是否转为tensor
     buffer_size: 0    # 数据缓存大小
-
-segmentation:    # 分割参数
-  type: 'RDF'    # 分割算法类型
-  params:
-    n_estimators: 300    # 决策树数量
-    max_depth: 20    # 决策树最大深度
-    min_samples_split: 2    # 划分节点最小样本数
-    min_samples_leaf: 1    # 叶子节点最小样本数
-    # random_state: 0    # 随机种子
-
-evaluation:    # 评估参数
-  depth_max_diff: 4.0    # 最大深度差值dM
-  depth_match_threshold: 1.0    # 判断两者匹配的深度差值阈值
