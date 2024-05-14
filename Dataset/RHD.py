@@ -27,7 +27,10 @@ class RHDDatasetItem(object):
         self.depth = cv2.imread(os.path.join(self.data_root, 'depth', self.img_name), cv2.IMREAD_UNCHANGED)
         self.depth = (self.depth[:, :, 2] * 256 + self.depth[:, :, 1]) / 65536.0  # 深度值归一化到 [0, 1]
         # 分类掩码
-        self.mask = cv2.imread(os.path.join(self.data_root,'mask', self.img_name), cv2.IMREAD_UNCHANGED).astype(np.int8)
+        self.origin_mask = cv2.imread(os.path.join(self.data_root,'mask', self.img_name), cv2.IMREAD_UNCHANGED).astype(np.int8)
+        self.mask = self.origin_mask.copy()
+        self.mask[(self.origin_mask >= 2) & (self.origin_mask <= 17)] = 2  # 左手
+        self.mask[(self.origin_mask >= 18) & (self.origin_mask <= 34)] = 3  # 右手
 
         if device is not None:
             self.color = self.__to_device(self.color, device)
@@ -46,6 +49,17 @@ class RHDDatasetItem(object):
 
 
 class RHDDataset(Dataset):
+    """
+    RHD 数据集
+    Keypoints available:
+    0: left wrist, 1-4: left thumb [tip to palm], 5-8: left index, ..., 17-20: left pinky,
+    21: right wrist, 22-25: right thumb, ..., 38-41: right pinky
+
+    Segmentation masks available:
+    0: background, 1: person, 
+    2-4: left thumb [tip to palm], 5-7: left index, ..., 14-16: left pinky, 17: palm, 
+    18-20: right thumb, ..., right palm: 33
+    """
     def __init__(self,
                  data_root: str,
                  set_type: Literal["train", "test"] = 'train',

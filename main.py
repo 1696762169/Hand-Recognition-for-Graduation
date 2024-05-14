@@ -17,14 +17,15 @@ from Evaluation import Evaluation
 from Segmentation import SkinColorSegmentation, RDFSegmentor
 from Dataset.RHD import RHDDataset
 from Dataset.IsoGD import IsoGDDataset
+import Test
 
 def test_mask(dataset: RHDDataset):
     sample = dataset[0]
     rgb = cv2.cvtColor(sample.color, cv2.COLOR_YUV2RGB)
-    person = np.zeros_like(sample.mask)
-    person[sample.mask == 1] = 1
-    hand = np.zeros_like(sample.mask)
-    hand[sample.mask >= 2] = 1
+    person = np.zeros_like(sample.origin_mask)
+    person[sample.origin_mask == 1] = 1
+    hand = np.zeros_like(sample.origin_mask)
+    hand[sample.origin_mask >= 2] = 1
 
     plt.figure()
 
@@ -57,7 +58,7 @@ def create_dataset(config: Config):
 def create_segmentor(config: Config):
     params = config.get_seg_params()
     if config.seg_type == 'RDF':
-        return RDFSegmentor(**params)
+        return RDFSegmentor(config, **params)
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -75,10 +76,19 @@ if __name__ == '__main__':
                             logging.StreamHandler()
                         ])
     
+    # 配置matplot
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+    plt.rcParams['axes.unicode_minus'] = False
+    
     config_file = str(args.config)
     config = Config(config_file)
     dataset = create_dataset(config)
     segmentor = create_segmentor(config)
+
+    Test.test_depth_feature(dataset)
+    # Test.test_depth_feature_mask(dataset)
+    # Test.test_rhd_dataset_mask_count(dataset)
+    # Test.test_rhd_dataset_depth_range(dataset)
 
     # test_mask(dataset)
 

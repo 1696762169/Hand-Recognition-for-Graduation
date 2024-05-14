@@ -137,7 +137,7 @@ class SkinColorSegmentation(object):
                 u = sample.color[:, :, 1].flatten().int()
                 v = sample.color[:, :, 2].flatten().int()
                 uv = u * 256 + v
-                hand_mask = sample.mask.flatten() >= 2      # 手掌掩膜 分类>=2为手掌的部分
+                hand_mask = sample.origin_mask.flatten() >= 2      # 手掌掩膜 分类>=2为手掌的部分
 
                 ps_cur = hand_mask.sum(where=hand_mask)
                 
@@ -186,3 +186,32 @@ class RDFSegmentor(object):
             )
         self.min_samples_split = min_samples_split
         self.config = config
+
+    @staticmethod
+    def get_depth_feature(depth_map: torch.Tensor, u: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+        """
+        获取深度特征
+        :param depth_map: 深度图 (w*h) [0, 1]
+        :param u: 偏移向量1 (2)
+        :param v: 偏移向量2 (2)
+        :return: 深度特征 (w*h)
+        """
+        def get_depth_feature_single(depth_map: torch.Tensor, offset: torch.Tensor):
+            offset_x = offset[0] / depth_map
+            offset_y = offset[1] / depth_map
+            # 构造索引矩阵
+            indices_x = torch.arange(depth_map.shape[0], device=depth_map.device)
+            indices_y = torch.arange(depth_map.shape[1], device=depth_map.device)
+            grid_x, grid_y = torch.meshgrid(indices_x, indices_y, indexing='ij')
+            # 计算偏移后的坐标 判断是否有效
+            grid_x = grid_x + offset_x
+            grid_y = grid_y + offset_y
+            valid = (grid_x >= 0) & (grid_x < depth_map.shape[0]) & \
+                    (grid_y >= 0) & (grid_y < depth_map.shape[1])
+
+            # 计算深度特征 无效的深度值设置为最大值 1
+            depth_feature = torch.ones_like(depth_map, dtype=torch.double, device=depth_map.device)
+            depth_feature[valid] = depth_map[grid_x[valid].int(), grid_y[valid].int()]
+            return depth_feature
+        
+        return get_depth_feature_single(depth_map, u) - get_depth_feature_single(depth_map, v)

@@ -15,3 +15,7 @@ segmentation:    # 分割参数
     min_samples_split: 2    # 划分节点最小样本数
     min_samples_leaf: 1    # 叶子节点最小样本数
     # random_state: 0    # 随机种子
+
+evaluation:    # 评估参数
+  depth_max_diff: 4.0    # 最大深度差值dM
+  depth_match_threshold: 1.0    # 判断两者匹配的深度差值阈值
