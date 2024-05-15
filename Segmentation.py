@@ -7,6 +7,7 @@ from scipy import stats
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
+import logging
 
 from Dataset.RHD import RHDDataset, RHDDatasetItem
 from Config import Config
@@ -254,27 +255,28 @@ class RDFSegmentor(object):
     def get_multiple_depth_feature(depth_map: torch.Tensor, pixel_indices: torch.Tensor, u: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
         """
         获取深度特征
-        :param depth_map: 深度图 (w, h) [0, 1]
+        :param depth_map: 深度图 (map_count, w, h) [0, 1]
         :param pixel_indices: 采样的像素索引 (2, pixel_count)
         :param u: 偏移向量1 (2, n)
         :param v: 偏移向量2 (2, n)
-        :return: 深度特征 (pixel_count, n)
+        :return: 深度特征 (map_count, pixel_count, n)
         """
         def get_depth_feature_single(depth_map: torch.Tensor, pixel_indices: torch.Tensor, offset: torch.Tensor):
-            depth = depth_map[pixel_indices[0], pixel_indices[1]][:, None]
-            offset_x = offset[0][None, :] / depth     # (pixel_count, n)
-            offset_y = offset[1][None, :] / depth     # (pixel_count, n)
+            depth = depth_map[:, pixel_indices[0], pixel_indices[1]][None, :, :, None]
+            norm_offset = offset[:, None, None, :] / depth    # (2, map_count, pixel_count, n)
             # 计算偏移后的坐标 判断是否有效
-            grid_x = pixel_indices[0][:, None] + offset_x
-            grid_y = pixel_indices[1][:, None] + offset_y
-            valid = (grid_x >= 0) & (grid_x < depth_map.shape[0]) & \
-                    (grid_y >= 0) & (grid_y < depth_map.shape[1])
+            grid = pixel_indices[:, None, :, None] + norm_offset
+            valid = (grid[0] >= 0) & (grid[0] < depth_map.shape[0]) & \
+                    (grid[1] >= 0) & (grid[1] < depth_map.shape[1])
 
             # 计算深度特征 无效的深度值设置为最大值 1
-            depth_feature = torch.ones((pixel_indices.shape[1], offset.shape[1]), dtype=depth_map.dtype, device=depth_map.device)
-            depth_feature[valid] = depth_map[grid_x[valid].int(), grid_y[valid].int()]
+            depth_feature = torch.ones((depth_map.shape[0], pixel_indices.shape[1], offset.shape[1]), dtype=depth_map.dtype, device=depth_map.device)
+            map_indices = torch.arange(depth_map.shape[0], device=depth_map.device)
+            map_indices = map_indices[:, None, None].expand_as(depth_feature)
+            depth_feature[valid] = depth_map[map_indices[valid], grid[0][valid].int(), grid[1][valid].int()]
             return depth_feature
         
+        depth_map = depth_map[None, :, :] if len(depth_map.shape) == 2 else depth_map
         return get_depth_feature_single(depth_map, pixel_indices, u) - get_depth_feature_single(depth_map, pixel_indices, v)
  
     def train_tree(self, dataset: RHDDataset) -> DecisionTree:
@@ -288,26 +290,27 @@ class RDFSegmentor(object):
         indices = np.random.choice(len(dataset), size=self.sample_per_tree, replace=False)
         samples: List[RHDDatasetItem] = [dataset[i] for i in indices]
 
-        features = torch.zeros((self.pixel_count * self.sample_per_tree, self.feature_count), device=self.device)
+        # 获取特征向量
+        u = self.get_offset_vectors(self.feature_count)
+        v = self.get_offset_vectors(self.feature_count)
+
+        # 获取抽样像素点
+        pixel_indices = torch.randint(0, dataset.pixel_count, size=(2, self.pixel_count), device=self.device)
+        pixel_indices[0] = pixel_indices[0] // dataset.image_shape[0]
+        pixel_indices[1] = pixel_indices[1] % dataset.image_shape[1]
+
+        depth_map = torch.zeros((self.sample_per_tree, dataset.image_shape[0], dataset.image_shape[1]), device=self.device)
         labels = np.zeros((self.pixel_count * self.sample_per_tree))
         for i in range(self.sample_per_tree):
-            # 计算深度特征
             s = samples[i]
-            pixel_indices = torch.randint(0, dataset.pixel_count, size=(2, self.pixel_count), device=self.device)
-            pixel_indices[0] = pixel_indices[0] // dataset.image_shape[0]
-            pixel_indices[1] = pixel_indices[1] % dataset.image_shape[1]
-            u = self.get_offset_vectors(self.feature_count)
-            v = self.get_offset_vectors(self.feature_count)
-            depth_features = RDFSegmentor.get_multiple_depth_feature(s.depth, pixel_indices, u, v)  # (pixel_count, n)
-            features[i * self.pixel_count: (i + 1) * self.pixel_count, :] = depth_features
-
-            # 获取比较特征
-            # depth_features = torch.abs(depth_features)[:, :, None]
-            # comp_features = depth_features > self.thresholds[None, None, :]
-            # comp_features = comp_features.reshape(comp_features.shape[0], -1).cpu()
-
+            # 记录深度图
+            depth_map[i] = s.depth
             # 获取标签
             labels[i * self.pixel_count: (i + 1) * self.pixel_count] = s.mask[pixel_indices[0].cpu(), pixel_indices[1].cpu()]
+
+        # 计算深度特征
+        depth_features = RDFSegmentor.get_multiple_depth_feature(depth_map, pixel_indices, u, v)  # (image_count, pixel_count, n)
+        depth_features = depth_features.reshape(-1, self.feature_count)
 
         # 训练决策树
         tree = DecisionTreeClassifier(max_depth=self.max_depth, 
@@ -316,7 +319,7 @@ class RDFSegmentor(object):
                                       random_state=self.random_state,
                                       max_features=self.max_features
                                     )
-        tree.fit(features.cpu(), labels)
+        tree.fit(depth_features.cpu(), labels)
         # 记录实际使用的特征
         features = torch.zeros((self.feature_count, 4), device=self.device)
         for feature_idx in tree.tree_.feature:
@@ -337,19 +340,47 @@ class RDFSegmentor(object):
             trees.append(tree)
         return trees
 
+    def train_tree_iterative(self, dataset: RHDDataset, 
+                             iter_count: int, 
+                             test_count: int, 
+                             keep_features: float | int=10) -> DecisionTree:
+        """
+        迭代地训练一棵决策树
+        :param dataset: 数据集
+        :param iter_count: 迭代次数
+        :param test_count: 测试样本数量
+        :param keep_features: 每轮保留的特征最大数量/比例
+        :return: 决策树和实际使用的特征
+        """
+        self.buffer_grid_indices(dataset.image_shape)
+        # 随机选取样本
+        indices = np.random.choice(len(dataset), size=self.sample_per_tree, replace=False)
+        samples: List[RHDDatasetItem] = [dataset[i] for i in indices]
+
+        best_tree = None
+        best_iou = 0
+
+        for i in range(iter_count):
+            logging.info(f"开始第{i+1}/{iter_count}轮迭代训练")
+            tree = self.train_tree(dataset)
+            logging.info(f"开始第{i+1}/{iter_count}轮迭代评估")
+
 
     def predict_mask(self, depth_map: torch.Tensor, tree_list: DecisionTree | List[DecisionTree]) -> np.ndarray:
         """
         预测分类掩膜
-        :param depth_map: 深度图 (w, h) [0, 1]
+        :param depth_map: 深度图 (n, w, h) [0, 1]
         :param tree: 决策树
-        :return: 分类掩膜 (w, h)
+        :return: 分类掩膜 (n, w, h)
         """
-        self.buffer_grid_indices(depth_map.shape)
+        if len(depth_map.shape) == 2:
+            depth_map = depth_map[None, :, :]
         if isinstance(tree_list, DecisionTree):
             tree_list = [tree_list]
+            
+        self.buffer_grid_indices(depth_map[0].shape)
 
-        ret = np.zeros((depth_map.shape[0] * depth_map.shape[1], len(tree_list)), dtype=np.uint8)
+        ret = np.zeros((depth_map.shape[0] * depth_map.shape[1] * depth_map.shape[2], len(tree_list)), dtype=np.uint8)
         for i in range(len(tree_list)):
         # for i in tqdm(range(len(tree_list)), desc="预测分类掩膜"):
             # 计算深度特征
