@@ -1,14 +1,15 @@
 # 这个文件中主要是用来进行一些实验的
+import os
+import pickle
+from typing import List
 import torch
 import numpy as np
 import cv2
 from skimage import exposure
 from matplotlib import pyplot as plt
 from tqdm import tqdm
-import pickle
-import os
 
-from Dataset.RHD import RHDDataset
+from Dataset.RHD import RHDDataset, RHDDatasetItem
 from Dataset.IsoGD import IsoGDDataset
 from Segmentation import RDFSegmentor, DecisionTree
 
@@ -197,35 +198,70 @@ def test_train_tree(dataset: RHDDataset, segmentor: RDFSegmentor) -> DecisionTre
     pickle.dump(ret, open("SegModel/Test/tree.pkl", "wb"))
     return ret
 
+def test_train_forest(dataset: RHDDataset, segmentor: RDFSegmentor) -> DecisionTree:
+    """
+    测试训练随机森林
+    """
+    ret = segmentor.train_forest(dataset)
+
+    # 保存随机森林
+    if not os.path.exists("SegModel/Test"):
+        os.makedirs("SegModel/Test")
+    pickle.dump(ret, open("SegModel/Test/forest.pkl", "wb"))
+    return ret
+
 def test_one_tree_predict(dataset: RHDDataset, segmentor: RDFSegmentor, tree: DecisionTree | None = None):
     """
     测试一颗决策树的预测效果
     """
     sample_idx = np.random.randint(len(dataset))
     sample = dataset[sample_idx]
-
     if tree is None:
         tree = pickle.load(open("SegModel/Test/tree.pkl", "rb"))
 
     # 预测结果
     pred = segmentor.predict_mask(sample.depth, tree)
     # 显示预测结果
+    __show_segmentation_result(sample, pred)
+
+def test_forest_predict(dataset: RHDDataset, segmentor: RDFSegmentor, forest: List[DecisionTree] | None = None):
+    """
+    测试随机森林的预测效果
+    """
+    sample_idx = np.random.randint(len(dataset))
+    sample = dataset[sample_idx]
+    if forest is None:
+        forest = pickle.load(open("SegModel/Test/forest.pkl", "rb"))
+
+    # 预测结果
+    pred = segmentor.predict_mask(sample.depth, forest)
+    # 显示预测结果
+    __show_segmentation_result(sample, pred, pred.dtype == np.uint8)
+
+def __show_segmentation_result(sample: RHDDatasetItem, pred: np.ndarray, binary: bool = True):
+    """
+    显示分割结果
+    :param sample: 样本数据
+    :param pred: 预测结果 (width, height)
+    """
     mask_color = np.zeros((sample.mask.shape[0], sample.mask.shape[1], 3), dtype=np.uint8)
     mask_color[sample.mask == 0] = [255, 255, 255]  # 背景
     mask_color[sample.mask == 1] = [0, 255, 0]  # 手部
 
-    pred_color = np.zeros((pred.shape[0], pred.shape[1], 3), dtype=np.uint8)
-    pred_color[pred == 0] = [255, 255, 255]  # 背景
-    pred_color[pred == 1] = [0, 255, 0]  # 手部
+    if binary:
+        pred_color = np.zeros((pred.shape[0], pred.shape[1], 3), dtype=np.uint8)
+        pred_color[pred == 0] = [255, 255, 255]  # 背景
+        pred_color[pred == 1] = [0, 255, 0]  # 手部
+    else:
+        pred_color = pred / 255.0
 
     fig, axes = plt.subplots(1, 3, figsize=(10, 5))
     axes[0].imshow(sample.depth.cpu(), cmap='gray')
     axes[0].set_title("原始图像")
     axes[1].imshow(mask_color)
     axes[1].set_title("Ground Truth")
-    axes[2].imshow(pred_color)
+    axes[2].imshow(pred_color, cmap='gray' if not binary else None)
     axes[2].set_title("预测结果")
 
     plt.tight_layout()
     plt.show()
-

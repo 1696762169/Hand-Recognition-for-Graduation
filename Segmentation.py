@@ -3,8 +3,10 @@ from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 import numpy as np
+from scipy import stats
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
+from tqdm import tqdm
 
 from Dataset.RHD import RHDDataset, RHDDatasetItem
 from Config import Config
@@ -315,8 +317,7 @@ class RDFSegmentor(object):
                 features[feature_idx] = torch.concat((u[:, feature_idx], v[:, feature_idx]))
         return DecisionTree(tree, features)
     
-    def train_forest(self,
-                     dataset: RHDDataset,) -> List[DecisionTree]:
+    def train_forest(self, dataset: RHDDataset,) -> List[DecisionTree]:
         """
         训练随机森林
         :param dataset: 数据集
@@ -324,12 +325,13 @@ class RDFSegmentor(object):
         """
         self.buffer_grid_indices(dataset.image_shape)
         trees = []
-        for i in range(self.tree_count):
-            tree = self.train_tree(dataset, len(dataset), 10)
+        for _ in tqdm(range(self.tree_count), desc="训练决策树"):
+            tree = self.train_tree(dataset)
             trees.append(tree)
+        return trees
 
 
-    def predict_mask(self, depth_map: torch.Tensor, tree: DecisionTree) -> np.ndarray:
+    def predict_mask(self, depth_map: torch.Tensor, tree_list: DecisionTree | List[DecisionTree]) -> np.ndarray:
         """
         预测分类掩膜
         :param depth_map: 深度图 (w, h) [0, 1]
@@ -337,18 +339,27 @@ class RDFSegmentor(object):
         :return: 分类掩膜 (w, h)
         """
         self.buffer_grid_indices(depth_map.shape)
+        if isinstance(tree_list, DecisionTree):
+            tree_list = [tree_list]
 
-        # 计算深度特征
-        u = tree.features[tree.features_valid, :2].transpose(0, 1)
-        v = tree.features[tree.features_valid, 2:].transpose(0, 1)
-        depth_features = RDFSegmentor.get_multiple_depth_feature(depth_map, self.grid_indices, u, v)  # (w*h, n)
+        ret = np.zeros((depth_map.shape[0] * depth_map.shape[1], len(tree_list)), dtype=np.uint8)
+        for i in tqdm(range(len(tree_list)), desc="预测分类掩膜"):
+            # 计算深度特征
+            tree = tree_list[i]
+            u = tree.features[tree.features_valid, :2].transpose(0, 1)
+            v = tree.features[tree.features_valid, 2:].transpose(0, 1)
+            depth_features = RDFSegmentor.get_multiple_depth_feature(depth_map, self.grid_indices, u, v)  # (w*h, n)
         
-        # 进行预测
-        features = torch.zeros(depth_features.shape[0], tree.features.shape[0], device=self.device)
-        features[:, tree.features_valid] = depth_features
-        pred = tree.sk_tree.predict(features.cpu())
-        pred = pred.reshape(depth_map.shape)
-        return pred
+            # 进行预测
+            features = torch.zeros(depth_features.shape[0], tree.features.shape[0], device=self.device)
+            features[:, tree.features_valid] = depth_features
+            ret[:, i] = tree.sk_tree.predict(features.cpu())
+
+        # 返回众数
+        # mode, _ = stats.mode(ret, axis=1, keepdims=False)
+        # return mode.astype(np.uint8).reshape(depth_map.shape)
+
+        return ret.astype(np.int32).sum(axis=1).reshape(depth_map.shape)
 
 
     def get_offset_vectors(self, count: int) -> torch.Tensor:
