@@ -279,16 +279,16 @@ class RDFSegmentor(object):
         depth_map = depth_map[None, :, :] if len(depth_map.shape) == 2 else depth_map
         return get_depth_feature_single(depth_map, pixel_indices, u) - get_depth_feature_single(depth_map, pixel_indices, v)
  
-    def train_tree(self, dataset: RHDDataset) -> DecisionTree:
+    def train_tree(self, dataset: RHDDataset, sample_indices: List[int] | None = None) -> DecisionTree:
         """
         训练一棵决策树
         :param dataset: 数据集
+        :param sample_indices: 样本索引 (默认随机选取)
         :return: 决策树和实际使用的特征
         """
         self.buffer_grid_indices(dataset.image_shape)
         # 随机选取样本
-        # indices = np.random.choice(len(dataset), size=self.sample_per_tree, replace=False)
-        indices = [0]
+        indices = np.random.choice(len(dataset), size=self.sample_per_tree, replace=False) if sample_indices is None else sample_indices
         samples: List[RHDDatasetItem] = [dataset[i] for i in indices]
         # logging.info(f'加载样本：{",".join(map(str, indices))}')
 

@@ -1,6 +1,7 @@
 # 这个文件中主要是用来进行一些实验的
 import os
 import time
+import math
 import pickle
 from typing import List
 import torch
@@ -216,9 +217,13 @@ def test_train_forest(dataset: RHDDataset, segmentor: RDFSegmentor, save: bool =
         pickle.dump(ret, open("SegModel/Test/forest.pkl", "wb"))
     return ret
 
-def test_one_tree_predict(dataset: RHDDataset, segmentor: RDFSegmentor, tree: DecisionTree | None = None, sample_idx: int = -1):
+def test_one_tree_predict(dataset: RHDDataset, segmentor: RDFSegmentor, tree: DecisionTree | None = None, sample_idx: int = -1, show_plt: bool = True) -> np.ndarray:
     """
     测试一颗决策树的预测效果
+    :param tree: 决策树
+    :param sample_idx: 样本编号
+    :param show_plt: 是否显示结果图
+    :return: 预测结果 (width, height)
     """
     sample_idx = np.random.randint(len(dataset)) if sample_idx == -1 else sample_idx
     sample = dataset[sample_idx]
@@ -228,7 +233,9 @@ def test_one_tree_predict(dataset: RHDDataset, segmentor: RDFSegmentor, tree: De
     # 预测结果
     pred = segmentor.predict_mask(sample.depth, tree)
     # 显示预测结果
-    __show_segmentation_result(sample, pred)
+    if show_plt:
+        __show_segmentation_result(sample, pred)
+    return pred
 def test_forest_predict(dataset: RHDDataset, segmentor: RDFSegmentor, forest: List[DecisionTree] | None = None):
     """
     测试随机森林的预测效果
@@ -319,7 +326,42 @@ def test_one_tree_result(dataset: RHDDataset, segmentor: RDFSegmentor,
         plt.ylabel("IoU")
 
         plt.show()
+def test_vary_max_depth(dataset: RHDDataset, segmentor: RDFSegmentor):
+    """
+    测试不同最大深度下的效果
+    """
+    max_depth_list = [i for i in range(1, 23)]
+    # max_depth_list = [1, 3, 5, 10, 15, 20, 25, 30, 40, 50]
+    result_list = []
+    sample_idx = 0
+    sample = dataset[sample_idx]
 
+    for max_depth in max_depth_list:
+        segmentor.max_depth = max_depth
+        tree = segmentor.train_tree(dataset, sample_indices=[sample_idx])
+        result = test_one_tree_predict(dataset, segmentor, tree, sample_idx=sample_idx, show_plt=False)
+        result_list.append(result)
+
+    pic_count = 2 + len(result_list)
+    row_count = math.ceil(math.sqrt(pic_count // 2))
+    col_count = math.ceil(pic_count / row_count)
+    fig, axes = plt.subplots(row_count, col_count, figsize=(20, 10))
+
+    axes[0, 0].imshow(sample.depth.cpu(), cmap='gray')
+    axes[0, 0].set_title("原始图像")
+    axes[0, 1].imshow(sample.mask, cmap='gray')
+    axes[0, 1].set_title("Ground Truth")
+    for i in range(2, len(result_list) + 2):
+        row_idx = i // col_count
+        col_idx = i % col_count
+        axe = axes[row_idx, col_idx]
+        axe.imshow(result_list[i - 2], cmap='gray')
+        axe.set_title(f"深度 {max_depth_list[i - 2]} IoU: {SegmentationEvaluation.mean_iou_static(result_list[i - 2], sample.mask):.4f}")
+    
+    fig.suptitle(f"不同最大深度下的结果 样本 {sample_idx}")
+    plt.tight_layout()
+    plt.show()
+    
 
 def __show_segmentation_result(sample: RHDDatasetItem, pred: np.ndarray, binary: bool = True):
     """
