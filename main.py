@@ -121,14 +121,14 @@ if __name__ == '__main__':
 
     # Test.test_iso_dataset_depth_range(dataset)
 
-    tree = Test.test_train_tree(dataset, segmentor)
-    # Test.test_one_tree_predict(dataset, segmentor)
+    # tree = Test.test_train_tree(dataset, segmentor)
+    Test.test_one_tree_predict(dataset, segmentor)
     # tree = Test.test_train_forest(dataset, segmentor)
     # Test.test_forest_predict(dataset, segmentor)
     # Test.test_one_tree_result(dataset, segmentor, 
     #                           force_train=False, 
-    #                           force_predict=False, 
-    #                           tree_count=200, predict_count=10)
+    #                         #   force_predict=False, 
+    #                           tree_count=200, predict_count=5)
 
     # test_mask(dataset)
 

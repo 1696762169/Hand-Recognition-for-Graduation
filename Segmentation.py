@@ -366,39 +366,50 @@ class RDFSegmentor(object):
             logging.info(f"开始第{i+1}/{iter_count}轮迭代评估")
 
 
-    def predict_mask(self, depth_map: torch.Tensor, tree_list: DecisionTree | List[DecisionTree]) -> np.ndarray:
+    def predict_mask(self, depth_map: torch.Tensor, tree_list: DecisionTree | List[DecisionTree], return_prob: bool=False) -> np.ndarray:
         """
         预测分类掩膜
-        :param depth_map: 深度图 (n, w, h) [0, 1]
+        :param depth_map: 深度图 (map_count, w, h) [0, 1]
         :param tree: 决策树
-        :return: 分类掩膜 (n, w, h)
+        :param return_prob: 是否返回预测概率 否则返回众数（分类结果）
+        :return: 分类掩膜 (map_count, w, h)
         """
+        original_shape = depth_map.shape
         if len(depth_map.shape) == 2:
             depth_map = depth_map[None, :, :]
+        map_count = depth_map.shape[0]
+        pixel_count = depth_map.shape[1] * depth_map.shape[2]
         if isinstance(tree_list, DecisionTree):
             tree_list = [tree_list]
             
         self.buffer_grid_indices(depth_map[0].shape)
 
-        ret = np.zeros((depth_map.shape[0] * depth_map.shape[1] * depth_map.shape[2], len(tree_list)), dtype=np.uint8)
+        ret = np.zeros((map_count, pixel_count, len(tree_list)), dtype=np.uint8)
         for i in range(len(tree_list)):
         # for i in tqdm(range(len(tree_list)), desc="预测分类掩膜"):
             # 计算深度特征
             tree = tree_list[i]
             u = tree.features[tree.features_valid, :2].transpose(0, 1)
             v = tree.features[tree.features_valid, 2:].transpose(0, 1)
-            depth_features = RDFSegmentor.get_multiple_depth_feature(depth_map, self.grid_indices, u, v)  # (w*h, n)
+            depth_features = RDFSegmentor.get_multiple_depth_feature(depth_map, self.grid_indices, u, v)  # (map_count, w*h, n)
         
             # 进行预测
-            features = torch.zeros(depth_features.shape[0], tree.features.shape[0], device=self.device)
-            features[:, tree.features_valid] = depth_features
-            ret[:, i] = tree.sk_tree.predict(features.cpu())
+            features = torch.zeros(depth_map.numel(), tree.features.shape[0], device=self.device)
+            features[:, tree.features_valid] = depth_features.view(-1, depth_features.shape[2])
+            predicts = tree.sk_tree.predict(features.cpu())  # (map_count * w*h)
+            ret[:, :, i] = predicts.reshape(map_count, pixel_count)
 
+        if len(tree_list) == 1:
+            return ret.reshape(original_shape).astype(np.float32 if return_prob else np.uint8)
+        
+        # 返回预测概率
+        if return_prob:
+            return (ret.astype(np.int32).sum(axis=2).astype(np.float32) / len(tree_list)).reshape(original_shape)
         # 返回众数
-        # mode, _ = stats.mode(ret, axis=1, keepdims=False)
-        # return mode.astype(np.uint8).reshape(depth_map.shape)
+        else:
+            mode, _ = stats.mode(ret, axis=2, keepdims=False)
+            return mode.astype(np.uint8).reshape(original_shape)
 
-        return ret.astype(np.int32).sum(axis=1).reshape(depth_map.shape)
 
 
     def get_offset_vectors(self, count: int) -> torch.Tensor:

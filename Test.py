@@ -1,5 +1,6 @@
 # 这个文件中主要是用来进行一些实验的
 import os
+import time
 import pickle
 from typing import List
 import torch
@@ -215,11 +216,11 @@ def test_train_forest(dataset: RHDDataset, segmentor: RDFSegmentor, save: bool =
         pickle.dump(ret, open("SegModel/Test/forest.pkl", "wb"))
     return ret
 
-def test_one_tree_predict(dataset: RHDDataset, segmentor: RDFSegmentor, tree: DecisionTree | None = None):
+def test_one_tree_predict(dataset: RHDDataset, segmentor: RDFSegmentor, tree: DecisionTree | None = None, sample_idx: int = -1):
     """
     测试一颗决策树的预测效果
     """
-    sample_idx = np.random.randint(len(dataset))
+    sample_idx = np.random.randint(len(dataset)) if sample_idx == -1 else sample_idx
     sample = dataset[sample_idx]
     if tree is None:
         tree = pickle.load(open("SegModel/Test/tree.pkl", "rb"))
@@ -238,9 +239,10 @@ def test_forest_predict(dataset: RHDDataset, segmentor: RDFSegmentor, forest: Li
         forest = pickle.load(open("SegModel/Test/forest.pkl", "rb"))
 
     # 预测结果
-    pred = segmentor.predict_mask(sample.depth, forest)
+    return_prob = True
+    pred = segmentor.predict_mask(sample.depth, forest, return_prob=return_prob)
     # 显示预测结果
-    __show_segmentation_result(sample, pred, pred.dtype == np.uint8)
+    __show_segmentation_result(sample, pred, ~return_prob)
 
 def test_one_tree_result(dataset: RHDDataset, segmentor: RDFSegmentor, 
                          tree_count: int = 100, 
@@ -283,24 +285,25 @@ def test_one_tree_result(dataset: RHDDataset, segmentor: RDFSegmentor,
         result_file = open(f"SegModel/Test/SingleTree/result_{Utils.get_time_str()}.csv", "w")
         result_file.write(f"tree_idx,iou,{','.join([f'sample_{i}' for i in range(predict_count)])}\n")
 
-        for i in tqdm(range(len(trees)), desc="统计预测结果"):
-            predict_mask = []
-            gt_mask = []
-            samples = []
-            # 进行分割预测
-            for _ in range(predict_count):
-                sample_idx = np.random.randint(len(dataset))
-                sample = dataset[sample_idx]
-                result = segmentor.predict_mask(sample.depth, trees[i])
+        for i in range(len(trees)):
+        # for i in tqdm(range(len(trees)), desc="统计预测结果"):
+            # 随机采样
+            sample_idx = [np.random.randint(len(dataset)) for _ in range(predict_count)]
+            samples = [dataset[idx] for idx in sample_idx]
+            gt_mask = [sample.mask for sample in samples]
 
-                predict_mask.append(result)
-                gt_mask.append(sample.mask)
-                samples.append(sample_idx)
+            # 预测
+            timer = time.perf_counter()
+            depth_map = torch.stack([sample.depth for sample in samples])
+            predict_mask = segmentor.predict_mask(depth_map, trees[i])
+            logging.info(f'预测耗时: {time.perf_counter() - timer:.4f}s')
+            timer = time.perf_counter()
+
             # 计算 IoU
             iou = SegmentationEvaluation.mean_iou_static(predict_mask, gt_mask)
             iou_list.append(iou)
             logging.info(f"第 {i} 棵决策树的平均 IoU: {iou:.4f}")
-            result_file.write(f"{i},{iou:.6f},{','.join([str(s) for s in samples])}\n")
+            result_file.write(f"{i},{iou:.6f},{','.join([str(s) for s in sample_idx])}\n")
         result_file.close()
     else:
         # 读取结果文件

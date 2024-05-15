@@ -95,14 +95,14 @@ class SegmentationEvaluation(object):
     """
     分割评估(IoU)
     """
-    def __init__(self, predict_mask: List[np.ndarray], gt_mask: List[np.ndarray]):
+    def __init__(self, predict_mask: List[np.ndarray] | np.ndarray, gt_mask: List[np.ndarray] | np.ndarray):
         """
         :param predict_mask: 预测掩膜列表
         :param gt_mask: 真实掩膜列表
         :param save_matrix: 是否保存IoU矩阵
         """
-        self.predict_mask = predict_mask
-        self.gt_mask = gt_mask
+        self.predict_mask = SegmentationEvaluation.mask2list(predict_mask)
+        self.gt_mask = SegmentationEvaluation.mask2list(gt_mask)
         assert len(predict_mask) == len(gt_mask), "预测掩膜数量与真实掩膜数量不匹配"
 
         self.sample_num = len(predict_mask)
@@ -124,5 +124,15 @@ class SegmentationEvaluation(object):
     def mean_iou(self) -> float:
         return np.mean(self.iou_list)
     @staticmethod
-    def mean_iou_static(predict_mask: List[np.ndarray], gt_mask: List[np.ndarray]) -> float:
+    def mean_iou_static(predict_mask: List[np.ndarray] | np.ndarray, gt_mask: List[np.ndarray] | np.ndarray) -> float:
         return SegmentationEvaluation(predict_mask, gt_mask).mean_iou()
+    
+    @staticmethod
+    def mask2list(mask: List[np.ndarray] | np.ndarray) -> List[np.ndarray]:
+        if isinstance(mask, np.ndarray):
+            if len(mask.shape) == 3:
+                return [mask[i, :, :] for i in range(mask.shape[0])]
+            else:
+                return [mask]
+        else:
+            return mask
