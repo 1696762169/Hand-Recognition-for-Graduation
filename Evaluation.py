@@ -108,7 +108,7 @@ class SegmentationEvaluation(object):
         self.sample_num = len(predict_mask)
 
         # 计算IoU列表
-        self.iou_list = SegmentationEvaluation.__get_iou_list(predict_mask, gt_mask)
+        self.iou_list = SegmentationEvaluation.__get_iou_list(self.predict_mask, self.gt_mask)
         
     # 计算IoU列表
     @staticmethod
