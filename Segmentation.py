@@ -1,5 +1,5 @@
 import os
-from tqdm import tqdm
+from typing import List, Tuple
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -7,12 +7,12 @@ from scipy import stats
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
+from matplotlib import pyplot as plt
 import logging
 
 from Dataset.RHD import RHDDataset, RHDDatasetItem
 from Config import Config
-from matplotlib import pyplot as plt
-from typing import List, Tuple
+from Evaluation import SegmentationEvaluation
 
 def segment_image(image, config):
     pass
@@ -279,22 +279,34 @@ class RDFSegmentor(object):
         depth_map = depth_map[None, :, :] if len(depth_map.shape) == 2 else depth_map
         return get_depth_feature_single(depth_map, pixel_indices, u) - get_depth_feature_single(depth_map, pixel_indices, v)
  
-    def train_tree(self, dataset: RHDDataset, sample_indices: List[int] | None = None) -> DecisionTree:
+    def train_tree(self, dataset: RHDDataset, 
+                   sample_indices: List[int] | None = None,  
+                   features: torch.Tensor | None = None) -> DecisionTree:
         """
         训练一棵决策树
         :param dataset: 数据集
         :param sample_indices: 样本索引 (默认随机选取)
+        :param features: 已有的特征向量 (n, 4)
         :return: 决策树和实际使用的特征
         """
         self.buffer_grid_indices(dataset.image_shape)
         # 随机选取样本
         indices = np.random.choice(len(dataset), size=self.sample_per_tree, replace=False) if sample_indices is None else sample_indices
         samples: List[RHDDatasetItem] = [dataset[i] for i in indices]
-        logging.info(f"训练样本: {','.join(map(str, indices))}")
+        logging.debug(f"训练样本: {','.join(map(str, indices))}")
 
         # 获取特征向量
-        u = self.get_offset_vectors(self.feature_count)
-        v = self.get_offset_vectors(self.feature_count)
+        if features is None:
+            u = self.get_offset_vectors(self.feature_count)
+            v = self.get_offset_vectors(self.feature_count)
+        elif features.shape[0] < self.feature_count:
+            u = self.get_offset_vectors(self.feature_count - features.shape[0])
+            u = torch.cat([features[:, :2].transpose(0, 1), u], dim=1)
+            v = self.get_offset_vectors(self.feature_count - features.shape[0])
+            v = torch.cat([features[:, 2:].transpose(0, 1), v], dim=1)
+        else:
+            u = features[:, :2].transpose(0, 1)
+            v = features[:, 2:].transpose(0, 1)
 
         # 获取抽样像素点
         pixel_indices = torch.randint(0, dataset.pixel_count, size=(2, self.pixel_count), device=self.device)
@@ -343,9 +355,9 @@ class RDFSegmentor(object):
         return trees
 
     def train_tree_iterative(self, dataset: RHDDataset, 
-                             iter_count: int, 
-                             test_count: int, 
-                             keep_features: float | int=10) -> DecisionTree:
+                             iter_count: int=10, 
+                             test_count: int=10, 
+                             keep_features: float | int=1.0) -> DecisionTree:
         """
         迭代地训练一棵决策树
         :param dataset: 数据集
@@ -355,18 +367,40 @@ class RDFSegmentor(object):
         :return: 决策树和实际使用的特征
         """
         self.buffer_grid_indices(dataset.image_shape)
-        # 随机选取样本
-        indices = np.random.choice(len(dataset), size=self.sample_per_tree, replace=False)
-        samples: List[RHDDatasetItem] = [dataset[i] for i in indices]
 
+        best_features = None
         best_tree = None
         best_iou = 0
 
         for i in range(iter_count):
-            logging.info(f"开始第{i+1}/{iter_count}轮迭代训练")
-            tree = self.train_tree(dataset)
-            logging.info(f"开始第{i+1}/{iter_count}轮迭代评估")
+            logging.info(f"开始第 {i+1} / {iter_count} 轮迭代训练")
+            tree = self.train_tree(dataset, features=best_features)
 
+            logging.info(f"开始第 {i+1} / {iter_count} 轮迭代评估")
+            test_indices = np.random.choice(len(dataset), size=test_count, replace=False)
+            test_samples: List[RHDDatasetItem] = [dataset[i] for i in test_indices]
+            gt_mask = [sample.mask for sample in test_samples]
+            
+            depth_map = torch.stack([sample.depth for sample in test_samples])
+            predict_mask = self.predict_mask(depth_map, tree)
+            test_iou = SegmentationEvaluation.mean_iou_static(predict_mask, gt_mask)
+
+            if test_iou > best_iou:
+                logging.info(f"第 {i+1} / {iter_count} 轮迭代更优: current_iou={test_iou:.4f} > best_iou={best_iou:.4f}")
+                best_iou = test_iou
+                best_tree = tree
+                # 保留最优且最重要的特征
+                if isinstance(keep_features, float):
+                    keep_feature_count = int(keep_features * len(tree.sk_tree.tree_.feature))
+                else:
+                    keep_feature_count = min(keep_features, tree.features.shape[0])
+                feature_indices = np.argsort(tree.sk_tree.feature_importances_)[::-1][:keep_feature_count]
+                best_features = tree.features[feature_indices.copy(), :]
+            else:
+                logging.info(f"第 {i+1} / {iter_count} 轮迭代无效: current_iou={test_iou:.4f} <= best_iou={best_iou:.4f}")
+
+        return best_tree
+    
 
     def predict_mask(self, depth_map: torch.Tensor, tree_list: DecisionTree | List[DecisionTree], return_prob: bool=False) -> np.ndarray:
         """

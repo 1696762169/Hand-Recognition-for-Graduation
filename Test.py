@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import cv2
 from skimage import exposure
+from sklearn.tree import export_text
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 import logging
@@ -183,20 +184,18 @@ def test_train_tree(dataset: RHDDataset, segmentor: RDFSegmentor, save: bool = T
     测试训练一颗决策树
     """
     ret = segmentor.train_tree(dataset)
-    # tree = ret.sk_tree
-    # n_nodes = tree.tree_.node_count
-    # children_left = tree.tree_.children_left
-    # children_right = tree.tree_.children_right
-    # feature = tree.tree_.feature
-    # threshold = tree.tree_.threshold
+    tree = ret.sk_tree
+    n_nodes = tree.tree_.node_count
+    features = tree.tree_.feature
 
-    # # 打印每个节点的决策规则
-    # print("决策树的结构：")
-    # for i in range(n_nodes):
-    #     if children_left[i] != children_right[i]:  # 如果不是叶节点
-    #         print(f"节点 {i}：如果特征 {feature[i]} <= {threshold[i]}, 则进入节点 {children_left[i]}, 否则进入节点 {children_right[i]}")
-    #     else:
-    #         print(f"节点 {i} 是一个叶节点。")
+    # 打印每个节点的决策规则
+    feature_names = [None] * ret.features.shape[0]
+    for i in range(n_nodes):
+        if features[i] != -2:  # 如果不是叶节点
+            f = ret.features[features[i]]
+            name = f"u:{f[0]:.2f},v:{f[1]:.2f}"
+            feature_names[features[i]] = name
+    logging.info('\n' + export_text(tree, feature_names=feature_names, decimals=4))
 
     # 保存决策树
     if save:
@@ -215,6 +214,30 @@ def test_train_forest(dataset: RHDDataset, segmentor: RDFSegmentor, save: bool =
         if not os.path.exists("SegModel/Test"):
             os.makedirs("SegModel/Test")
         pickle.dump(ret, open("SegModel/Test/forest.pkl", "wb"))
+    return ret
+def test_train_tree_iterative(dataset: RHDDataset, segmentor: RDFSegmentor, save: bool = True) -> DecisionTree:
+    """
+    使用迭代训练一颗决策树
+    """
+    ret = segmentor.train_tree_iterative(dataset)
+    tree = ret.sk_tree
+    n_nodes = tree.tree_.node_count
+    features = tree.tree_.feature
+
+    # 打印每个节点的决策规则
+    feature_names = [None] * ret.features.shape[0]
+    for i in range(n_nodes):
+        if features[i] != -2:  # 如果不是叶节点
+            f = ret.features[features[i]]
+            name = f"u:{f[0]:.2f},v:{f[1]:.2f}"
+            feature_names[features[i]] = name
+    logging.info('\n' + export_text(tree, feature_names=feature_names, decimals=4))
+
+    # 保存决策树
+    if save:
+        if not os.path.exists("SegModel/Test"):
+            os.makedirs("SegModel/Test")
+        pickle.dump(ret, open("SegModel/Test/tree_iterative.pkl", "wb"))
     return ret
 
 def test_one_tree_predict(dataset: RHDDataset, segmentor: RDFSegmentor, tree: DecisionTree | None = None, sample_idx: int = -1, show_plt: bool = True) -> np.ndarray:
@@ -336,8 +359,8 @@ def test_vary_max_depth(dataset: RHDDataset, segmentor: RDFSegmentor):
     sample_idx = 0
     sample = dataset[sample_idx]
 
-    for max_depth in max_depth_list:
-        segmentor.max_depth = max_depth
+    for i in tqdm(range(len(max_depth_list)), desc="测试不同最大深度"):
+        segmentor.max_depth = max_depth_list[i]
         tree = segmentor.train_tree(dataset, sample_indices=[sample_idx])
         result = test_one_tree_predict(dataset, segmentor, tree, sample_idx=sample_idx, show_plt=False)
         result_list.append(result)
