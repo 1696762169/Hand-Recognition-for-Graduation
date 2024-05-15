@@ -5,6 +5,8 @@ import cv2
 from skimage import exposure
 from matplotlib import pyplot as plt
 from tqdm import tqdm
+import pickle
+import os
 
 from Dataset.RHD import RHDDataset
 from Dataset.IsoGD import IsoGDDataset
@@ -173,8 +175,8 @@ def test_train_tree(dataset: RHDDataset, segmentor: RDFSegmentor) -> DecisionTre
     """
     测试训练一颗决策树
     """
-    ret = segmentor.train_tree(dataset, 10, 10, 100, 1000)
-    tree = ret.tree
+    ret = segmentor.train_tree(dataset, 10, 30, 10000)
+    tree = ret.sk_tree
     # n_nodes = tree.tree_.node_count
     # children_left = tree.tree_.children_left
     # children_right = tree.tree_.children_right
@@ -188,12 +190,42 @@ def test_train_tree(dataset: RHDDataset, segmentor: RDFSegmentor) -> DecisionTre
     #         print(f"节点 {i}：如果特征 {feature[i]} <= {threshold[i]}, 则进入节点 {children_left[i]}, 否则进入节点 {children_right[i]}")
     #     else:
     #         print(f"节点 {i} 是一个叶节点。")
+
+    # 保存决策树
+    if not os.path.exists("SegModel/Test"):
+        os.makedirs("SegModel/Test")
+    pickle.dump(ret, open("SegModel/Test/tree.pkl", "wb"))
     return ret
 
-def test_one_tree_predict(dataset: RHDDataset, tree: DecisionTree):
+def test_one_tree_predict(dataset: RHDDataset, segmentor: RDFSegmentor, tree: DecisionTree | None = None):
     """
     测试一颗决策树的预测效果
     """
     sample_idx = np.random.randint(len(dataset))
     sample = dataset[sample_idx]
+
+    if tree is None:
+        tree = pickle.load(open("SegModel/Test/tree.pkl", "rb"))
+
+    # 预测结果
+    pred = segmentor.predict_mask(sample.depth, tree)
+    # 显示预测结果
+    mask_color = np.zeros((sample.mask.shape[0], sample.mask.shape[1], 3), dtype=np.uint8)
+    mask_color[sample.mask == 0] = [255, 255, 255]  # 背景
+    mask_color[sample.mask == 1] = [0, 255, 0]  # 手部
+
+    pred_color = np.zeros((pred.shape[0], pred.shape[1], 3), dtype=np.uint8)
+    pred_color[pred == 0] = [255, 255, 255]  # 背景
+    pred_color[pred == 1] = [0, 255, 0]  # 手部
+
+    fig, axes = plt.subplots(1, 3, figsize=(10, 5))
+    axes[0].imshow(sample.depth.cpu(), cmap='gray')
+    axes[0].set_title("原始图像")
+    axes[1].imshow(mask_color)
+    axes[1].set_title("Ground Truth")
+    axes[2].imshow(pred_color)
+    axes[2].set_title("预测结果")
+
+    plt.tight_layout()
+    plt.show()
 

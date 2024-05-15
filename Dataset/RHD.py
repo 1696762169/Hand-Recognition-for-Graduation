@@ -23,6 +23,7 @@ class RHDDatasetItem(object):
         self.color = cv2.imread(os.path.join(self.data_root, 'color', self.img_name), cv2.IMREAD_UNCHANGED)
         self.color = cv2.cvtColor(self.color, cv2.COLOR_BGR2YUV)
         # self.color = self.color.astype(np.float32) / 256.0  # 图像归一化到 [0, 1]
+        
         # 深度图像
         if use_modified_depth:
             self.depth = cv2.imread(os.path.join(self.data_root, 'modified_depth', self.img_name), cv2.IMREAD_GRAYSCALE)
@@ -30,11 +31,15 @@ class RHDDatasetItem(object):
         else:
             self.depth = cv2.imread(os.path.join(self.data_root, 'depth', self.img_name), cv2.IMREAD_UNCHANGED)
             self.depth = (self.depth[:, :, 2] * 256 + self.depth[:, :, 1]) / 65536.0  # 深度值归一化到 [0, 1]
+        self.depth = self.depth.astype(np.float32)
+
         # 分类掩码
         self.origin_mask = cv2.imread(os.path.join(self.data_root,'mask', self.img_name), cv2.IMREAD_UNCHANGED).astype(np.int8)
-        self.mask = self.origin_mask.copy()
-        self.mask[(self.origin_mask >= 2) & (self.origin_mask <= 17)] = 2  # 左手
-        self.mask[(self.origin_mask >= 18) & (self.origin_mask <= 34)] = 3  # 右手
+        self.mask = np.zeros_like(self.origin_mask)
+        self.mask[self.origin_mask >= 2] = 1  # 手部
+        # self.mask = self.origin_mask.copy()
+        # self.mask[(self.origin_mask >= 2) & (self.origin_mask <= 17)] = 2  # 左手
+        # self.mask[(self.origin_mask >= 18) & (self.origin_mask <= 34)] = 3  # 右手
 
         if device is not None:
             self.color = self.__to_device(self.color, device)

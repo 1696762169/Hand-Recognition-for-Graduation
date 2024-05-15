@@ -93,8 +93,8 @@ if __name__ == '__main__':
 
     # Test.test_iso_dataset_depth_range(dataset)
 
-    tree = Test.test_train_tree(dataset, segmentor)
-    Test.test_one_tree_predict(dataset, tree)
+    # tree = Test.test_train_tree(dataset, segmentor)
+    Test.test_one_tree_predict(dataset, segmentor)
 
     # test_mask(dataset)
 
