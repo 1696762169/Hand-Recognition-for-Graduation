@@ -290,6 +290,7 @@ class RDFSegmentor(object):
         # 随机选取样本
         indices = np.random.choice(len(dataset), size=self.sample_per_tree, replace=False) if sample_indices is None else sample_indices
         samples: List[RHDDatasetItem] = [dataset[i] for i in indices]
+        logging.info(f"训练样本: {','.join(map(str, indices))}")
 
         # 获取特征向量
         u = self.get_offset_vectors(self.feature_count)

@@ -96,8 +96,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # 配置日志
-    logging.basicConfig(level=logging.INFO,
-                        format='%(asctime)s - %(levelname)s - %(message)s',
+    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
+                        level=logging.INFO,
+                        # level=logging.WARNING,
                         datefmt='%Y-%m-%d %H:%M:%S',
                         handlers=[
                             # logging.FileHandler(f"Log/log {Utils.get_time_str()}.txt", encoding='utf-8'),
@@ -122,7 +123,7 @@ if __name__ == '__main__':
     # Test.test_iso_dataset_depth_range(dataset)
 
     # tree = Test.test_train_tree(dataset, segmentor)
-    # Test.test_one_tree_predict(dataset, segmentor, sample_idx=0)
+    # Test.test_one_tree_predict(dataset, segmentor, sample_idx=0, sample_idx=15488)
     # tree = Test.test_train_forest(dataset, segmentor)
     # Test.test_forest_predict(dataset, segmentor)
     # Test.test_one_tree_result(dataset, segmentor, 
