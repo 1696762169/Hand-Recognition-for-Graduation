@@ -3,15 +3,19 @@ import os
 import pickle
 from typing import List
 import torch
+import pandas as pd
 import numpy as np
 import cv2
 from skimage import exposure
 from matplotlib import pyplot as plt
 from tqdm import tqdm
+import logging
 
 from Dataset.RHD import RHDDataset, RHDDatasetItem
 from Dataset.IsoGD import IsoGDDataset
 from Segmentation import RDFSegmentor, DecisionTree
+from Evaluation import SegmentationEvaluation
+from Utils import Utils
 
 def test_rhd_dataset_depth_range(dataset: RHDDataset):
     """
@@ -172,12 +176,12 @@ def test_depth_feature_mask(dataset: RHDDataset):
     plt.show()
 
 
-def test_train_tree(dataset: RHDDataset, segmentor: RDFSegmentor) -> DecisionTree:
+def test_train_tree(dataset: RHDDataset, segmentor: RDFSegmentor, save: bool = True) -> DecisionTree:
     """
     测试训练一颗决策树
     """
     ret = segmentor.train_tree(dataset)
-    tree = ret.sk_tree
+    # tree = ret.sk_tree
     # n_nodes = tree.tree_.node_count
     # children_left = tree.tree_.children_left
     # children_right = tree.tree_.children_right
@@ -193,21 +197,22 @@ def test_train_tree(dataset: RHDDataset, segmentor: RDFSegmentor) -> DecisionTre
     #         print(f"节点 {i} 是一个叶节点。")
 
     # 保存决策树
-    if not os.path.exists("SegModel/Test"):
-        os.makedirs("SegModel/Test")
-    pickle.dump(ret, open("SegModel/Test/tree.pkl", "wb"))
+    if save:
+        if not os.path.exists("SegModel/Test"):
+            os.makedirs("SegModel/Test")
+        pickle.dump(ret, open("SegModel/Test/tree.pkl", "wb"))
     return ret
-
-def test_train_forest(dataset: RHDDataset, segmentor: RDFSegmentor) -> DecisionTree:
+def test_train_forest(dataset: RHDDataset, segmentor: RDFSegmentor, save: bool = True) -> DecisionTree:
     """
     测试训练随机森林
     """
     ret = segmentor.train_forest(dataset)
 
     # 保存随机森林
-    if not os.path.exists("SegModel/Test"):
-        os.makedirs("SegModel/Test")
-    pickle.dump(ret, open("SegModel/Test/forest.pkl", "wb"))
+    if save:
+        if not os.path.exists("SegModel/Test"):
+            os.makedirs("SegModel/Test")
+        pickle.dump(ret, open("SegModel/Test/forest.pkl", "wb"))
     return ret
 
 def test_one_tree_predict(dataset: RHDDataset, segmentor: RDFSegmentor, tree: DecisionTree | None = None):
@@ -223,7 +228,6 @@ def test_one_tree_predict(dataset: RHDDataset, segmentor: RDFSegmentor, tree: De
     pred = segmentor.predict_mask(sample.depth, tree)
     # 显示预测结果
     __show_segmentation_result(sample, pred)
-
 def test_forest_predict(dataset: RHDDataset, segmentor: RDFSegmentor, forest: List[DecisionTree] | None = None):
     """
     测试随机森林的预测效果
@@ -237,6 +241,82 @@ def test_forest_predict(dataset: RHDDataset, segmentor: RDFSegmentor, forest: Li
     pred = segmentor.predict_mask(sample.depth, forest)
     # 显示预测结果
     __show_segmentation_result(sample, pred, pred.dtype == np.uint8)
+
+def test_one_tree_result(dataset: RHDDataset, segmentor: RDFSegmentor, 
+                         tree_count: int = 100, 
+                         predict_count: int = 10, 
+                         force_train: bool = True,
+                         force_predict: bool = True,
+                         show_plt: bool = True):
+    """
+    测试单棵决策树的结果 找到效果比较好的决策树 以及其特征
+    :param tree_count: 决策树数量
+    :param predict_count: 预测次数
+    :param force_train: 是否强制重新训练决策树
+    :param force_predict: 是否强制重新预测
+    :param show_plt: 是否显示结果图
+    """
+    trees = []
+    if not os.path.exists("SegModel/Test/SingleTree"):
+        os.makedirs("SegModel/Test/SingleTree")
+
+    # 训练决策树
+    for i in tqdm(range(tree_count), desc="训练决策树"):
+        if force_train or not os.path.exists(f"SegModel/Test/SingleTree/tree_{i}.pkl"):
+            tree = segmentor.train_tree(dataset)
+            pickle.dump(tree, open(f"SegModel/Test/SingleTree/tree_{i}.pkl", "wb"))
+        else:
+            tree = pickle.load(open(f"SegModel/Test/SingleTree/tree_{i}.pkl", "rb"))
+        trees.append(tree)
+
+    # 遍历SegModel/Test/SingleTree文件夹 查找result文件
+    file_list = []
+    for file_name in os.listdir("SegModel/Test/SingleTree"):
+        if file_name.startswith("result_") and file_name.endswith(".csv"):
+            file_list.append(file_name)
+    
+    # 进行验证
+    iou_list = []
+    force_predict |= force_train
+    if force_predict or len(file_list) == 0:
+        # 预测结果 并 记入文件
+        result_file = open(f"SegModel/Test/SingleTree/result_{Utils.get_time_str()}.csv", "w")
+        result_file.write(f"tree_idx,iou,{','.join([f'sample_{i}' for i in range(predict_count)])}\n")
+
+        for i in tqdm(range(len(trees)), desc="统计预测结果"):
+            predict_mask = []
+            gt_mask = []
+            samples = []
+            # 进行分割预测
+            for _ in range(predict_count):
+                sample_idx = np.random.randint(len(dataset))
+                sample = dataset[sample_idx]
+                result = segmentor.predict_mask(sample.depth, trees[i])
+
+                predict_mask.append(result)
+                gt_mask.append(sample.mask)
+                samples.append(sample_idx)
+            # 计算 IoU
+            iou = SegmentationEvaluation.mean_iou_static(predict_mask, gt_mask)
+            iou_list.append(iou)
+            logging.info(f"第 {i} 棵决策树的平均 IoU: {iou:.4f}")
+            result_file.write(f"{i},{iou:.6f},{','.join([str(s) for s in samples])}\n")
+        result_file.close()
+    else:
+        # 读取结果文件
+        file_name = file_list.sort()[-1]
+        df = pd.read_csv(f"SegModel/Test/SingleTree/{file_name}")
+        iou_list = df['iou'].tolist()
+
+    # 绘制结果图
+    if show_plt:
+        plt.bar(np.arange(len(iou_list)), iou_list)
+        plt.title("单棵决策树的平均 IoU 统计")
+        plt.xlabel("决策树编号")
+        plt.ylabel("IoU")
+
+        plt.show()
+
 
 def __show_segmentation_result(sample: RHDDatasetItem, pred: np.ndarray, binary: bool = True):
     """

@@ -65,21 +65,21 @@ class ClassificationEvaluation(object):
     def accuracy(self) -> float:
         return np.trace(self.confusion_matrix) / self.sample_num
     @staticmethod
-    def accuracy(class_num: int, predict_label: List[int], gt_label: List[int]) -> float:
+    def accuracy_static(class_num: int, predict_label: List[int], gt_label: List[int]) -> float:
         return ClassificationEvaluation(class_num, predict_label, gt_label).accuracy()
 
     # 计算精确率
     def precision(self, class_id: int) -> float:
         return self.confusion_matrix[class_id, class_id] / np.sum(self.confusion_matrix[:, class_id])
     @staticmethod
-    def precision(class_num: int, predict_label: List[int], gt_label: List[int], class_id: int) -> float:
+    def precision_static(class_num: int, predict_label: List[int], gt_label: List[int], class_id: int) -> float:
         return ClassificationEvaluation(class_num, predict_label, gt_label).precision(class_id)
     
     # 计算召回率
     def recall(self, class_id: int) -> float:
         return self.confusion_matrix[class_id, class_id] / np.sum(self.confusion_matrix[class_id, :])
     @staticmethod
-    def recall(class_num: int, predict_label: List[int], gt_label: List[int], class_id: int) -> float:
+    def recall_static(class_num: int, predict_label: List[int], gt_label: List[int], class_id: int) -> float:
         return ClassificationEvaluation(class_num, predict_label, gt_label).recall(class_id)
     
     # 计算F1-score
@@ -88,7 +88,7 @@ class ClassificationEvaluation(object):
         recall = self.recall(class_id)
         return 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
     @staticmethod
-    def f1_score(class_num: int, predict_label: List[int], gt_label: List[int], class_id: int) -> float:
+    def f1_score_static(class_num: int, predict_label: List[int], gt_label: List[int], class_id: int) -> float:
         return ClassificationEvaluation(class_num, predict_label, gt_label).f1_score(class_id)
     
 class SegmentationEvaluation(object):
@@ -124,5 +124,5 @@ class SegmentationEvaluation(object):
     def mean_iou(self) -> float:
         return np.mean(self.iou_list)
     @staticmethod
-    def mean_iou(predict_mask: List[np.ndarray], gt_mask: List[np.ndarray]) -> float:
+    def mean_iou_static(predict_mask: List[np.ndarray], gt_mask: List[np.ndarray]) -> float:
         return SegmentationEvaluation(predict_mask, gt_mask).mean_iou()

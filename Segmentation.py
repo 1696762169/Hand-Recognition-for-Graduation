@@ -195,6 +195,7 @@ class RDFSegmentor(object):
                  min_samples_leaf=1,   # 叶子节点最少包含的样本数
                  random_state=None,   # 随机数种子
                  feature_count=1000,   # 每棵树采样的特征数量
+                 max_features=None,   # 特征选择的最大数量
 
                  tree_count=3,    # 随机森林的树的数量
                  ):
@@ -212,6 +213,7 @@ class RDFSegmentor(object):
         self.min_samples_leaf = min_samples_leaf
         self.random_state = random_state
         self.feature_count = feature_count
+        self.max_features = max_features
 
         # 随机森林参数
         self.tree_count = tree_count
@@ -285,31 +287,36 @@ class RDFSegmentor(object):
         # 随机选取样本
         indices = np.random.choice(len(dataset), size=self.sample_per_tree, replace=False)
         samples: List[RHDDatasetItem] = [dataset[i] for i in indices]
-        s = samples[0]
 
-        # 计算深度特征
-        pixel_indices = torch.randint(0, dataset.pixel_count, size=(2, self.pixel_count), device=self.device)
-        pixel_indices[0] = pixel_indices[0] // dataset.image_shape[0]
-        pixel_indices[1] = pixel_indices[1] % dataset.image_shape[1]
-        u = self.get_offset_vectors(self.feature_count)
-        v = self.get_offset_vectors(self.feature_count)
-        depth_features = RDFSegmentor.get_multiple_depth_feature(s.depth, pixel_indices, u, v)  # (pixel_count, n)
-        
-        # 获取比较特征
-        # depth_features = torch.abs(depth_features)[:, :, None]
-        # comp_features = depth_features > self.thresholds[None, None, :]
-        # comp_features = comp_features.reshape(comp_features.shape[0], -1).cpu()
+        features = torch.zeros((self.pixel_count * self.sample_per_tree, self.feature_count), device=self.device)
+        labels = np.zeros((self.pixel_count * self.sample_per_tree))
+        for i in range(self.sample_per_tree):
+            # 计算深度特征
+            s = samples[i]
+            pixel_indices = torch.randint(0, dataset.pixel_count, size=(2, self.pixel_count), device=self.device)
+            pixel_indices[0] = pixel_indices[0] // dataset.image_shape[0]
+            pixel_indices[1] = pixel_indices[1] % dataset.image_shape[1]
+            u = self.get_offset_vectors(self.feature_count)
+            v = self.get_offset_vectors(self.feature_count)
+            depth_features = RDFSegmentor.get_multiple_depth_feature(s.depth, pixel_indices, u, v)  # (pixel_count, n)
+            features[i * self.pixel_count: (i + 1) * self.pixel_count, :] = depth_features
 
-        # 获取标签
-        labels = s.mask[pixel_indices[0].cpu(), pixel_indices[1].cpu()]
+            # 获取比较特征
+            # depth_features = torch.abs(depth_features)[:, :, None]
+            # comp_features = depth_features > self.thresholds[None, None, :]
+            # comp_features = comp_features.reshape(comp_features.shape[0], -1).cpu()
+
+            # 获取标签
+            labels[i * self.pixel_count: (i + 1) * self.pixel_count] = s.mask[pixel_indices[0].cpu(), pixel_indices[1].cpu()]
 
         # 训练决策树
         tree = DecisionTreeClassifier(max_depth=self.max_depth, 
                                       min_samples_leaf=self.min_samples_leaf, 
                                       min_samples_split=self.min_samples_split, 
-                                      random_state=self.random_state
+                                      random_state=self.random_state,
+                                      max_features=self.max_features
                                     )
-        tree.fit(depth_features.cpu(), labels)
+        tree.fit(features.cpu(), labels)
         # 记录实际使用的特征
         features = torch.zeros((self.feature_count, 4), device=self.device)
         for feature_idx in tree.tree_.feature:
@@ -343,7 +350,8 @@ class RDFSegmentor(object):
             tree_list = [tree_list]
 
         ret = np.zeros((depth_map.shape[0] * depth_map.shape[1], len(tree_list)), dtype=np.uint8)
-        for i in tqdm(range(len(tree_list)), desc="预测分类掩膜"):
+        for i in range(len(tree_list)):
+        # for i in tqdm(range(len(tree_list)), desc="预测分类掩膜"):
             # 计算深度特征
             tree = tree_list[i]
             u = tree.features[tree.features_valid, :2].transpose(0, 1)

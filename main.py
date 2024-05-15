@@ -100,8 +100,8 @@ if __name__ == '__main__':
                         format='%(asctime)s - %(levelname)s - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
                         handlers=[
-                            # logging.FileHandler(f"Log/log {Utils.get_time_str()}.txt"),
-                            logging.StreamHandler()
+                            logging.FileHandler(f"Log/log {Utils.get_time_str()}.txt", encoding='utf-8'),
+                            # logging.StreamHandler()
                         ])
     
     # 配置matplot
@@ -124,7 +124,11 @@ if __name__ == '__main__':
     # tree = Test.test_train_tree(dataset, segmentor)
     # Test.test_one_tree_predict(dataset, segmentor)
     # tree = Test.test_train_forest(dataset, segmentor)
-    Test.test_forest_predict(dataset, segmentor)
+    # Test.test_forest_predict(dataset, segmentor)
+    Test.test_one_tree_result(dataset, segmentor, 
+                              force_train=False, 
+                              force_predict=False, 
+                              tree_count=200, predict_count=10)
 
     # test_mask(dataset)
 

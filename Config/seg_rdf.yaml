@@ -14,5 +14,6 @@ segmentation:    # 分割参数
     min_samples_leaf: 1    # 叶子节点最小样本数
     # random_state: 0    # 随机种子
     feature_count: 1000    # 随机选择的特征数量
+    max_features: 'sqrt'    # 随机选择的特征数量
 
     tree_count: 300    # 决策树数量
