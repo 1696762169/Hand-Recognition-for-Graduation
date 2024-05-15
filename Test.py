@@ -175,7 +175,7 @@ def test_train_tree(dataset: RHDDataset, segmentor: RDFSegmentor) -> DecisionTre
     """
     测试训练一颗决策树
     """
-    ret = segmentor.train_tree(dataset, 10, 30, 10000)
+    ret = segmentor.train_tree(dataset)
     tree = ret.sk_tree
     # n_nodes = tree.tree_.node_count
     # children_left = tree.tree_.children_left

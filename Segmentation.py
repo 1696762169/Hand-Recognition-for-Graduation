@@ -180,18 +180,21 @@ class RDFSegmentor(object):
     随机森林分割方法
     """
     def __init__(self, *,
-                 n_estimators=3,    # 随机森林的树的数量
                  pixel_count: int=2000,   # 每张图片采样的像素数量
-                 threshold_split: int=50,   # 深度特征的比较阈值的分割点数目
-                 threshold_min: float=-1.0,   # 深度特征的比较阈值的最小值
-                 threshold_max: float=1.0,   # 深度特征的比较阈值的最大值
+                #  threshold_split: int=50,   # 深度特征的比较阈值的分割点数目
+                #  threshold_min: float=-1.0,   # 深度特征的比较阈值的最小值
+                #  threshold_max: float=1.0,   # 深度特征的比较阈值的最大值
                  offset_min: float=0.0,    # 偏移向量长度的最小值
                  offset_max: float=10.0,     # 偏移向量长度的最大值
 
+                 sample_per_tree=1000,   # 每棵树训练的样本数量
                  max_depth=None,    # 树的最大深度
                  min_samples_split=2,  # 节点分裂所需的最小样本数
                  min_samples_leaf=1,   # 叶子节点最少包含的样本数
                  random_state=None,   # 随机数种子
+                 feature_count=1000,   # 每棵树采样的特征数量
+
+                 tree_count=3,    # 随机森林的树的数量
                  ):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         # 深度特征采样参数
@@ -201,10 +204,15 @@ class RDFSegmentor(object):
         self.offset_max = offset_max
 
         # 决策树训练参数
+        self.sample_per_tree = sample_per_tree
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
         self.min_samples_leaf = min_samples_leaf
         self.random_state = random_state
+        self.feature_count = feature_count
+
+        # 随机森林参数
+        self.tree_count = tree_count
 
         # 网格索引缓存
         self.grid_indices: torch.Tensor = None  # (2, w*h)
@@ -265,20 +273,15 @@ class RDFSegmentor(object):
         
         return get_depth_feature_single(depth_map, pixel_indices, u) - get_depth_feature_single(depth_map, pixel_indices, v)
  
-    def train_tree(self, 
-                   dataset: RHDDataset, 
-                   sample_count: int, 
-                   feature_count: int) -> DecisionTree:
+    def train_tree(self, dataset: RHDDataset) -> DecisionTree:
         """
         训练一棵决策树
         :param dataset: 数据集
-        :param sample_count: 样本数量
-        :param feature_count: 采样的特征数量
         :return: 决策树和实际使用的特征
         """
         self.buffer_grid_indices(dataset.image_shape)
         # 随机选取样本
-        indices = np.random.choice(len(dataset), size=sample_count, replace=False)
+        indices = np.random.choice(len(dataset), size=self.sample_per_tree, replace=False)
         samples: List[RHDDatasetItem] = [dataset[i] for i in indices]
         s = samples[0]
 
@@ -286,8 +289,8 @@ class RDFSegmentor(object):
         pixel_indices = torch.randint(0, dataset.pixel_count, size=(2, self.pixel_count), device=self.device)
         pixel_indices[0] = pixel_indices[0] // dataset.image_shape[0]
         pixel_indices[1] = pixel_indices[1] % dataset.image_shape[1]
-        u = self.get_offset_vectors(feature_count)
-        v = self.get_offset_vectors(feature_count)
+        u = self.get_offset_vectors(self.feature_count)
+        v = self.get_offset_vectors(self.feature_count)
         depth_features = RDFSegmentor.get_multiple_depth_feature(s.depth, pixel_indices, u, v)  # (pixel_count, n)
         
         # 获取比较特征
@@ -306,12 +309,25 @@ class RDFSegmentor(object):
                                     )
         tree.fit(depth_features.cpu(), labels)
         # 记录实际使用的特征
-        features = torch.zeros((feature_count, 4), device=self.device)
+        features = torch.zeros((self.feature_count, 4), device=self.device)
         for feature_idx in tree.tree_.feature:
             if feature_idx >= 0:
                 features[feature_idx] = torch.concat((u[:, feature_idx], v[:, feature_idx]))
         return DecisionTree(tree, features)
     
+    def train_forest(self,
+                     dataset: RHDDataset,) -> List[DecisionTree]:
+        """
+        训练随机森林
+        :param dataset: 数据集
+        :return: 决策树列表
+        """
+        self.buffer_grid_indices(dataset.image_shape)
+        trees = []
+        for i in range(self.tree_count):
+            tree = self.train_tree(dataset, len(dataset), 10)
+            trees.append(tree)
+
 
     def predict_mask(self, depth_map: torch.Tensor, tree: DecisionTree) -> np.ndarray:
         """
