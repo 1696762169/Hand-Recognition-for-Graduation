@@ -11,24 +11,18 @@ from torch.autograd import Variable
 from eval import eval_net
 from unet import UNet
 from utils import *
-from ..Dataset.RHD import RHDDataset
-from ..Config import Config
 
 
 def train_net(net, epochs=100, batch_size=2, lr=0.02, val_percent=0.05,
               cp=True, gpu=False):
-    # dir_img = '/home/wdh/DataSets/hand-segmentation/GTEA_gaze_part/Resize/Images/'
-    # dir_mask = '/home/wdh/DataSets/hand-segmentation/GTEA_gaze_part/Resize/Masks_1/'
+    dir_img = '/home/wdh/DataSets/hand-segmentation/GTEA_gaze_part/Resize/Images/'
+    dir_mask = '/home/wdh/DataSets/hand-segmentation/GTEA_gaze_part/Resize/Masks_1/'
     dir_checkpoint = 'checkpoints/'
 
-    # ids = get_ids(dir_img)
-    # ids = split_ids(ids)
+    ids = get_ids(dir_img)
+    ids = split_ids(ids)
 
-    config = Config('test')
-    dataset_params = config.get_dataset_params()
-    dataset_params['to_tensor'] = False
-    dataset = RHDDataset(config.dataset_root, config.dataset_split, **dataset_params)
-    iddataset = split_train_val(len(dataset), val_percent)
+    iddataset = split_train_val(ids, val_percent)
 
     print('''
     Starting training:
@@ -51,8 +45,8 @@ def train_net(net, epochs=100, batch_size=2, lr=0.02, val_percent=0.05,
         print('Starting epoch {}/{}.'.format(epoch + 1, epochs))
 
         # reset the generators
-        train = get_imgs_and_masks(dataset, iddataset['train'])
-        val = get_imgs_and_masks(dataset, iddataset['val'])
+        train = get_imgs_and_masks(iddataset['train'], dir_img, dir_mask)
+        val = get_imgs_and_masks(iddataset['val'], dir_img, dir_mask)
 
         epoch_loss = 0
 

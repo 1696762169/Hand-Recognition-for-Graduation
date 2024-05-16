@@ -3,8 +3,7 @@ import argparse
 import numpy
 import torch
 import torch.nn.functional as F
-# from PIL import Image
-import cv2
+from PIL import Image
 from torch.autograd import Variable
 
 from unet import UNet
@@ -38,19 +37,18 @@ def predict_img(net, full_img, gpu=False):
     y_l = F.upsample_bilinear(y_l, scale_factor=2).data[0][0].cpu().numpy()
     y_r = F.upsample_bilinear(y_r, scale_factor=2).data[0][0].cpu().numpy()
 
-    y = merge_masks(y_l, y_r, full_img.shape[0])
+    y = merge_masks(y_l, y_r, full_img.size[0])
     yy = dense_crf(np.array(full_img).astype(np.uint8), y)
 
     return yy > 0.5
 
 
 if __name__ == "__main__":
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', '-m', default='model/MODEL.pth',
+    parser.add_argument('--model', '-m', default='MODEL.pth',
                         metavar='FILE',
                         help="Specify the file in which is stored the model"
-                             " (default : 'model/MODEL.pth')")
+                             " (default : 'MODEL.pth')")
     parser.add_argument('--input', '-i', metavar='INPUT', nargs='+',
                         help='filenames of input images', required=True)
     parser.add_argument('--output', '-o', metavar='INPUT', nargs='+',
@@ -78,8 +76,6 @@ if __name__ == "__main__":
     in_files = args.input
     print("in_files=",in_files)
     out_files = []
-    if not os.path.exists('output'):
-        os.makedirs('output')
     if not args.output:
         for f in in_files:
             pathsplit = os.path.splitext(f)
@@ -96,11 +92,7 @@ if __name__ == "__main__":
 
     for i, fn in enumerate(in_files):
         print("\nPredicting image {} ...".format(fn))
-        img = cv2.imread(fn, cv2.IMREAD_COLOR)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        original_size = img.size
-        # img = img.resize((1918, 1280), Image.NEAREST)
-        img = cv2.resize(img, (1918, 1280), interpolation=cv2.INTER_NEAREST)
+        img = Image.open(fn)
         
         out = predict_img(net, img, not args.cpu)
         if args.viz:
@@ -109,8 +101,7 @@ if __name__ == "__main__":
             plot_img_mask(img, out)
         if not args.no_save:
             out_fn = out_files[i]
-            result = (out * 255).astype(numpy.uint8)
-            result = cv2.resize(result, original_size, interpolation=cv2.INTER_NEAREST)
-            result.save(os.path.join('output', out_files[i]))
+            result = Image.fromarray((out * 255).astype(numpy.uint8))
+            result.save(out_files[i])
               
             print("Mask saved to {}".format(out_files[i]))
