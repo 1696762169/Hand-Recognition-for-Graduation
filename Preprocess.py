@@ -6,6 +6,7 @@ import numpy as np
 import cv2
 import torch
 from tqdm import tqdm
+import logging
 from matplotlib import pyplot as plt
 
 from Config import Config
@@ -105,6 +106,7 @@ def get_good_features():
         test_iou = SegmentationEvaluation.mean_iou_static(predict_mask, gt_mask)
 
         # 筛选有效特征
+        logging.info(f'Test IOU: {test_iou}')
         if test_iou < good_threshold:
             continue
 

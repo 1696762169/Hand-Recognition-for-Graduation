@@ -161,3 +161,4 @@ cython_debug/
 
 # Custom
 Segmentation/model/
+hand3d-master/data/bin/
