@@ -120,11 +120,29 @@ def get_good_features():
     # 保存有效特征
     np.save('SegModel/Test/good_features.npy', good_features)
 
+def get_senz_list():
+    """
+    获取Senz3D数据集的文件列表
+    """
+    config = Config("senz")
+    dataset_root = config.dataset_root
+    data_root = os.path.join(dataset_root, 'data')
+
+    with open(os.path.join(dataset_root, 'data.txt'), 'w') as f:
+        for sub_dir in os.listdir(data_root):
+            sub_idx = int(sub_dir[1:])
+            for ges_dir in os.listdir(os.path.join(data_root, sub_dir)):
+                ges_idx = int(ges_dir[1:])
+                img_idx = 1
+                while os.path.exists(os.path.join(data_root, sub_dir, ges_dir, f'{img_idx}-color.png')):
+                    f.write(f'{sub_dir}/{ges_dir} {sub_idx} {ges_idx} {img_idx}\n')
+                    img_idx += 1
+
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     # 解析命令行参数
     parser = argparse.ArgumentParser()
-    parser.add_argument('--task', type=str, default='good_features', help='要进行的预处理任务，目前仅支持rhd')
+    parser.add_argument('--task', type=str, default='senz', help='要进行的预处理任务，目前仅支持rhd')
     args = parser.parse_args()
 
     task = args.task
@@ -132,5 +150,7 @@ if __name__ == '__main__':
         modify_rhd_depth()
     elif task == 'good_features':
         get_good_features()
+    elif task == 'senz':
+        get_senz_list()
     else:
         print(f'暂不支持的预处理任务：{task}')

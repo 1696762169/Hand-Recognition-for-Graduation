@@ -17,6 +17,7 @@ class Config(object):
             self.dataset_name = dataset['name']
             self.dataset_root = dataset['root']
             self.dataset_split = dataset['split_type']
+            self.dataset_to_tensor = dataset['to_tensor']
 
         # 分割算法参数
         if'segmentation' in self.config:

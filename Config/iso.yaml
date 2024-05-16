@@ -3,7 +3,7 @@ dataset:
   name: 'ChaLearn-IsoGD'    # 数据集名称
   root: 'd:\Python\dataset\ChaLearn-IsoGD\'    # 数据集根目录路径
   split_type: 'train'            # 使用的数据集划分部分
+  to_tensor: True    # 是否转为tensor
   # params: False                     # 数据集参数 应该与Dataset类的关键词参数对应
   params:
-    to_tensor: True    # 是否转为tensor
     buffer_size: 0    # 数据缓存大小

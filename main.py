@@ -45,6 +45,7 @@ from Evaluation import Evaluation
 from Segmentation import SkinColorSegmentation, RDFSegmentor
 from Dataset.RHD import RHDDataset
 from Dataset.IsoGD import IsoGDDataset
+from Dataset.Senz import SenzDataset
 import Test
 
 def test_mask(dataset: RHDDataset):
@@ -77,9 +78,11 @@ def test_mask(dataset: RHDDataset):
 def create_dataset(config: Config):
     params = config.get_dataset_params()
     if config.dataset_type == 'RHD':
-        return RHDDataset(config.dataset_root, config.dataset_split, **params)
+        return RHDDataset(config.dataset_root, config.dataset_split, config.dataset_to_tensor, **params)
     elif config.dataset_type == 'IsoGD':
-        return IsoGDDataset(config.dataset_root, config.dataset_split, **params)
+        return IsoGDDataset(config.dataset_root, config.dataset_split, config.dataset_to_tensor, **params)
+    elif config.dataset_type == 'Senz3d':
+        return SenzDataset(config.dataset_root, config.dataset_split, config.dataset_to_tensor, **params)
     else:
         raise ValueError('Unsupported dataset type: {}'.format(config.dataset_type))
 
@@ -120,11 +123,12 @@ if __name__ == '__main__':
     # Test.test_rhd_dataset_mask_count(dataset)
     # Test.test_rhd_dataset_depth_range(dataset)
     # Test.test_rhd_dataset_depth_max(dataset)
+    Test.test_senz_dataset(dataset)
 
     # Test.test_iso_dataset_depth_range(dataset)
 
     # tree = Test.test_train_tree(dataset, segmentor)
-    tree = Test.test_train_tree_iterative(dataset, segmentor)
+    # tree = Test.test_train_tree_iterative(dataset, segmentor)
     # Test.test_one_tree_predict(dataset, segmentor, sample_idx=1266)
     # tree = Test.test_train_forest(dataset, segmentor)
     # Test.test_forest_predict(dataset, segmentor)

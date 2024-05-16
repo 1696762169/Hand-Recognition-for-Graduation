@@ -51,8 +51,8 @@ class IsoGDDataset(Dataset):
     def __init__(self, 
                  data_root: str, 
                  set_type: Literal['train', 'valid', 'test'],
-                 *,
                  to_tensor: bool = True,
+                 *,
                  device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
                  buffer_size: int = 0,
                  shared_list: dict[int, IsoGDDatasetItem] = None) -> None:

@@ -1,21 +1,22 @@
 import random
 
 import numpy as np
+import cv2
 
 
-def get_square(img, pos):
-    """Extract a left or a right square from PILimg shape : (H, W, C))"""
+def get_square(img, index):
+    """Extract a left or a right square from PILimg shape : (W, H, C))"""
     img = np.array(img)
-    h = img.shape[0]
-    if pos == 0:
+    h = img.shape[1]
+    if index == 0:
         return img[:, :h]
     else:
         return img[:, -h:]
 
 
-def resize_and_crop(pilimg, scale=0.5, final_height=None):
-    w = pilimg.size[0]
-    h = pilimg.size[1]
+def resize_and_crop(img: np.ndarray, scale=0.5, final_height=None):
+    w = img.shape[0]
+    h = img.shape[1]
     newW = int(w * scale)
     newH = int(h * scale)
 
@@ -24,8 +25,10 @@ def resize_and_crop(pilimg, scale=0.5, final_height=None):
     else:
         diff = newH - final_height
 
-    img = pilimg.resize((newW, newH))
-    img = img.crop((0, diff // 2, newW, newH - diff // 2))
+    # img = img.resize((newW, newH))
+    img = cv2.resize(img, (newW, newH), interpolation=cv2.INTER_NEAREST)
+    # img = img.crop((0, diff // 2, newW, newH - diff // 2))
+    img = img[:newW, diff // 2: newH - diff // 2 + 1, :]
     return img
 
 
@@ -42,12 +45,11 @@ def batch(iterable, batch_size):
         yield b
 
 
-def split_train_val(dataset, val_percent=0.05):
-    dataset = list(dataset)
-    length = len(dataset)
+def split_train_val(length, val_percent=0.05):
     n = int(length * val_percent)
-    random.shuffle(dataset)
-    return {'train': dataset[:-n], 'val': dataset[-n:]}
+    ids = list(range(length))
+    random.shuffle(ids)
+    return {'train': ids[:-n], 'val': ids[-n:]}
 
 
 def normalize(x):

@@ -21,7 +21,6 @@ def split_ids(ids, n=2):
     return ((id, i) for i in range(n) for id in ids)
 
 
-def to_cropped_imgs(ids, dir, suffix):
     """From a list of tuples, returns the correct cropped img"""
     for id, pos in ids:
         im = resize_and_crop(Image.open(dir + id + suffix))

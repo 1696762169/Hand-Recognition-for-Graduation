@@ -72,8 +72,8 @@ class RHDDataset(Dataset):
     def __init__(self,
                  data_root: str,
                  set_type: Literal["train", "test"] = 'train',
-                 *,
                  to_tensor: bool = True,
+                 *,
                  use_modified_depth: bool = False,
                  device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
                  shared_list: list = None) -> None:

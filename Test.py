@@ -16,6 +16,7 @@ import logging
 
 from Dataset.RHD import RHDDataset, RHDDatasetItem
 from Dataset.IsoGD import IsoGDDataset
+from Dataset.Senz import SenzDataset
 from Segmentation import RDFSegmentor, DecisionTree
 from Evaluation import SegmentationEvaluation
 from Utils import Utils
@@ -112,6 +113,35 @@ def test_iso_dataset_depth_range(dataset: IsoGDDataset, sample_idx: int = -1):
         axe.set_title(f"第 {i + 1} 帧\n背景像素数量: {len(depth[depth > 0.999])}")
     
     fig.suptitle(f"样本 {sample_idx} 各帧深度分布")
+    plt.tight_layout()
+    plt.show()
+
+
+def test_senz_dataset(dataset: SenzDataset):
+    """
+    测试Senz数据集导入效果
+    """
+    
+    sample_idx = np.random.randint(len(dataset))
+    sample = dataset[sample_idx]
+
+    fig, axes = plt.subplots(3, 4, figsize=(20, 8))
+    fig.suptitle(f"Senz数据集样本 {sample_idx}")
+
+    axes[0, 0].imshow(sample.color_rgb)
+    axes[0, 0].set_title("RGB")
+    axes[1, 0].imshow(sample.depth.cpu(), cmap='gray')
+    axes[1, 0].set_title("Depth")
+    axes[2, 0].imshow(sample.confidence, cmap='gray')
+    axes[2, 0].set_title("Confidence")
+
+    thresholds = np.arange(1, 10, 1) / 800
+    for i, threshold in enumerate(thresholds):
+        mask = sample.confidence > threshold
+        axe = axes[i // 3, (i % 3) + 1]
+        axe.imshow(mask, cmap='gray')
+        axe.set_title(f"Mask of {threshold:.4f}")
+
     plt.tight_layout()
     plt.show()
 
