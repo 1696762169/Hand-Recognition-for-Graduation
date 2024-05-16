@@ -10,6 +10,8 @@ class DiceCoeff(Function):
     """Dice coeff for individual examples"""
 
     def forward(self, input, target):
+        input = input.flatten()
+        target = target.flatten()
         self.save_for_backward(input, target)
         self.inter = torch.dot(input, target) + 0.0001
         self.union = torch.sum(input) + torch.sum(target) + 0.0001

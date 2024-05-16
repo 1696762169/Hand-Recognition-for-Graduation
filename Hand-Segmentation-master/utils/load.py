@@ -31,15 +31,20 @@ def to_cropped_imgs(ids, dir, suffix):
 def get_imgs_and_masks(ids, dir_img, dir_mask):
     """Return all the couples (img, mask)"""
 
-    imgs = to_cropped_imgs(ids, dir_img, '.jpg')
+    imgs = to_cropped_imgs(ids, dir_img, '.png')
 
     # need to transform from HWC to CHW
     imgs_switched = map(partial(np.transpose, axes=[2, 0, 1]), imgs)
     imgs_normalized = map(normalize, imgs_switched)
 
     masks = to_cropped_imgs(ids, dir_mask, '.png')
+    def mask_to_binary(mask):
+        ret = np.zeros_like(mask)
+        ret[mask > 1] = 1
+        return ret
+    masks_binary = map(mask_to_binary, masks)
 
-    return zip(imgs_normalized, masks)
+    return zip(imgs_normalized, masks_binary)
 
 
 def get_full_img_and_mask(id, dir_img, dir_mask):

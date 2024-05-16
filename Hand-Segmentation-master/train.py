@@ -1,4 +1,5 @@
 import sys
+from tqdm import tqdm
 from optparse import OptionParser
 
 import torch
@@ -15,9 +16,9 @@ from utils import *
 
 def train_net(net, epochs=100, batch_size=2, lr=0.02, val_percent=0.05,
               cp=True, gpu=False):
-    dir_img = '/home/wdh/DataSets/hand-segmentation/GTEA_gaze_part/Resize/Images/'
-    dir_mask = '/home/wdh/DataSets/hand-segmentation/GTEA_gaze_part/Resize/Masks_1/'
-    dir_checkpoint = 'checkpoints/'
+    dir_img = r'D:\Python\dataset\RHD\test\color\\'
+    dir_mask = r'D:\Python\dataset\RHD\test\mask\\'
+    dir_checkpoint = 'model/'
 
     ids = get_ids(dir_img)
     ids = split_ids(ids)
@@ -75,10 +76,10 @@ def train_net(net, epochs=100, batch_size=2, lr=0.02, val_percent=0.05,
             y_flat = y.view(-1)
 
             loss = criterion(probs_flat, y_flat.float())
-            epoch_loss += loss.data[0]
+            epoch_loss += loss.item()
 
             print('{0:.4f} --- loss: {1:.6f}'.format(i * batch_size / N_train,
-                                                     loss.data[0]))
+                                                     loss.item()), end='\r')
 
             optimizer.zero_grad()
 
@@ -96,6 +97,8 @@ def train_net(net, epochs=100, batch_size=2, lr=0.02, val_percent=0.05,
 
 
 if __name__ == '__main__':
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
     parser = OptionParser()
     parser.add_option('-e', '--epochs', dest='epochs', default=100, type='int',
                       help='number of epochs')
@@ -104,7 +107,7 @@ if __name__ == '__main__':
     parser.add_option('-l', '--learning-rate', dest='lr', default=0.02,
                       type='float', help='learning rate')
     parser.add_option('-g', '--gpu', action='store_true', dest='gpu',
-                      default=False, help='use cuda')
+                      default=True, help='use cuda')
     parser.add_option('-c', '--load', dest='load',
                       default=False, help='load file model')
 

@@ -19,6 +19,25 @@
             "program": "${workspaceFolder}/Preprocess.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-        }
+        },
+        {
+            "name": "其他方案测试",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/Hand-Segmentation-master/train.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "VISTA 方案测试",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/VISTA/main.py",
+            "console": "integratedTerminal",
+            "args": ["--mode", "predict", 
+                     "--data_base_path", "D:/Python/dataset/temp",
+                     "--model_pretrained",
+                     "--model_checkpoint", "./VISTA/checkpoint/checkpoint.ckpt"
+                ]
+        },
     ]
 }

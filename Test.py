@@ -146,6 +146,33 @@ def test_senz_dataset(dataset: SenzDataset):
     plt.show()
 
 
+def test_direct_method(dataset: SenzDataset):
+    sample_idx = np.random.randint(len(dataset))
+    sample = dataset[sample_idx]
+
+    import torch.hub
+    model = torch.hub.load(
+        # source='local',
+        repo_or_dir='guglielmocamporese/hands-segmentation-pytorch', 
+        model='hand_segmentor', 
+        pretrained=True,
+    )
+
+    # Inference
+    model.eval()
+    rgb = torch.tensor(sample.color_rgb)
+    img_rnd = rgb.permute(2, 1, 0)[None, :, :, :].float() # [B, C, H, W]
+    preds: torch.Tensor = model(img_rnd).argmax(1) # [B, H, W]
+    preds = preds[0].cpu().numpy().T.astype(np.uint8)
+
+    # 绘制结果
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    axes[0].imshow(rgb)
+    axes[0].set_title("RGB")
+    axes[1].imshow(preds, cmap='gray')
+    axes[1].set_title("Preds")
+    plt.show()
+
 def test_depth_feature(dataset: RHDDataset):
     """
     测试不同偏移向量下的深度特征直方图

@@ -17,12 +17,13 @@ def eval_net(net, dataset, gpu=False):
         X = torch.FloatTensor(X).unsqueeze(0)
         y = torch.ByteTensor(y).unsqueeze(0)
 
-        if gpu:
-            X = Variable(X, volatile=True).cuda()
-            y = Variable(y, volatile=True).cuda()
-        else:
-            X = Variable(X, volatile=True)
-            y = Variable(y, volatile=True)
+        with torch.no_grad():
+            if gpu:
+                X = Variable(X).cuda()
+                y = Variable(y).cuda()
+            else:
+                X = Variable(X)
+                y = Variable(y)
 
         y_pred = net(X)
 

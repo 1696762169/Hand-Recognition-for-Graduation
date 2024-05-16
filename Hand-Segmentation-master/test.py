@@ -44,11 +44,12 @@ def predict_img(net, full_img, gpu=False):
 
 
 if __name__ == "__main__":
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', '-m', default='MODEL.pth',
+    parser.add_argument('--model', '-m', default='model/MODEL.pth',
                         metavar='FILE',
                         help="Specify the file in which is stored the model"
-                             " (default : 'MODEL.pth')")
+                             " (default : 'model/MODEL.pth')")
     parser.add_argument('--input', '-i', metavar='INPUT', nargs='+',
                         help='filenames of input images', required=True)
     parser.add_argument('--output', '-o', metavar='INPUT', nargs='+',
@@ -79,7 +80,7 @@ if __name__ == "__main__":
     if not args.output:
         for f in in_files:
             pathsplit = os.path.splitext(f)
-            out_files.append("{}_OUT{}".format(pathsplit[0], pathsplit[1]))
+            out_files.append("output/{}_OUT{}".format(pathsplit[0], pathsplit[1]))
     elif len(in_files) != len(args.output):
         print("Error : Input files and output files are not of the same length")
         raise SystemExit()
