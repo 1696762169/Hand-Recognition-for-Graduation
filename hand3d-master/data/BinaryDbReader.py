@@ -53,14 +53,14 @@ class BinaryDbReader(object):
                 crop_offset_noise: boolean, Offsets the hand crop center randomly (keypoints can lie outside the crop)
                 scoremap_dropout: boolean, Randomly drop scoremap channels
         """
-        self.path_to_db = './data/bin/'
+        self.path_to_db = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'bin')
 
         self.num_samples = 0
-        if mode == 'training':
-            self.path_to_db += 'rhd_training.bin'
+        if mode == 'train':
+            self.path_to_db += 'rhd_train.bin'
             self.num_samples = 41258
-        elif mode == 'evaluation':
-            self.path_to_db += 'rhd_evaluation.bin'
+        elif mode == 'test':
+            self.path_to_db += 'rhd_test.bin'
             self.num_samples = 2728
         else:
             assert 0, "Unknown dataset mode."

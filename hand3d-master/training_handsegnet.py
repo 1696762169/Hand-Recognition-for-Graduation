@@ -34,7 +34,7 @@ train_para = {'lr': [1e-5, 1e-6, 1e-7],
               'snapshot_dir': 'snapshots_handsegnet'}
 
 # get dataset
-dataset = BinaryDbReader(mode='training',
+dataset = BinaryDbReader(mode='train',
                          batch_size=8, shuffle=True,
                          hue_aug=True, random_crop_to_size=True)
 
