@@ -11,6 +11,7 @@ from matplotlib import pyplot as plt
 
 from Config import Config
 from Dataset.RHD import RHDDataset
+from Dataset.IsoGD import IsoGDDataset
 from Segmentation import RDFSegmentor
 from Evaluation import SegmentationEvaluation
 
@@ -138,11 +139,25 @@ def get_senz_list():
                     f.write(f'{sub_dir}/{ges_dir} {sub_idx} {ges_idx} {img_idx}\n')
                     img_idx += 1
 
+def split_iso_to_images():
+    """
+    将ISO数据集划分为图像文件
+    """
+    config = Config("iso")
+    dataset = IsoGDDataset(config.dataset_root, config.dataset_split, False, **config.get_dataset_params())
+    sample = dataset[1]
+
+    des = r'D:\Python\dataset\temp'
+    for i in range(len(sample)):
+        img_path = os.path.join(des, f'{i:05d}.png')
+        cv2.imwrite(img_path, sample.get_rgb_frame(i), [cv2.IMWRITE_PNG_COMPRESSION, 0])
+
+
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     # 解析命令行参数
     parser = argparse.ArgumentParser()
-    parser.add_argument('--task', type=str, default='senz', help='要进行的预处理任务，目前仅支持rhd')
+    parser.add_argument('--task', type=str, default='split_iso', help='要进行的预处理任务，目前仅支持rhd')
     args = parser.parse_args()
 
     task = args.task
@@ -152,5 +167,7 @@ if __name__ == '__main__':
         get_good_features()
     elif task == 'senz':
         get_senz_list()
+    elif task == 'split_iso':
+        split_iso_to_images()
     else:
         print(f'暂不支持的预处理任务：{task}')

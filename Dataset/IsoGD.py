@@ -67,8 +67,8 @@ class IsoGDDataset(Dataset):
         self.meta_data : list[tuple[str, str, int]] = []  # (rgb_path, depth_path, label)
         with open(os.path.join(data_root, set_type + '.txt'), 'r') as f:
             for line in f.readlines():
-                rgb_path, rgb_path, label = line.strip().split(' ')
-                self.meta_data.append((rgb_path, rgb_path, int(label)))
+                rgb_path, depth_path, label = line.strip().split(' ')
+                self.meta_data.append((rgb_path, depth_path, int(label)))
 
         # 定义transform
         def default_depth_transform(x):
