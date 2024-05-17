@@ -28,15 +28,18 @@
 
 import os
 import sys
+import time
+import argparse
+from typing import Literal
+
 import numpy as np
 import cv2
 import torch
 from torch.utils.data import DataLoader
-import argparse
+
 import matplotlib.pyplot as plt
 import logging
 from tqdm import tqdm
-import time
 
 from Config import Config
 from PSO import PSOSolver
@@ -49,32 +52,8 @@ from Dataset.IsoGD import IsoGDDataset
 from Dataset.Senz import SenzDataset
 import Test
 
-def test_mask(dataset: RHDDataset):
-    sample = dataset[0]
-    rgb = cv2.cvtColor(sample.color, cv2.COLOR_YUV2RGB)
-    person = np.zeros_like(sample.origin_mask)
-    person[sample.origin_mask == 1] = 1
-    hand = np.zeros_like(sample.origin_mask)
-    hand[sample.origin_mask >= 2] = 1
-
-    plt.figure()
-
-    plt.subplot(1, 3, 1)
-    plt.imshow(rgb)
-    plt.axis('off')
-    plt.title('RGB')
-
-    plt.subplot(1, 3, 2)
-    plt.imshow(person)
-    plt.axis('off')
-    plt.title('Person')
-
-    plt.subplot(1, 3, 3)
-    plt.imshow(hand)
-    plt.axis('off')
-    plt.title('Hand')
-
-    plt.show()
+dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
+segmentor_type: Literal['RDF', 'ResNet'] = 'ResNet'
 
 def create_dataset(config: Config):
     params = config.get_dataset_params()
@@ -102,7 +81,9 @@ if __name__ == '__main__':
 
     # 解析命令行参数
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='test', help='config file name')
+    # parser.add_argument('--data', type=str, default='RHD', help='dataset type, default: RHD')
+    # parser.add_argument('--seg', type=str, default='RDF ', help='segmentor type, default: RDF')
+    parser.add_argument('--config', type=str, help='config file name')
     args = parser.parse_args()
 
     # 配置日志
@@ -120,15 +101,15 @@ if __name__ == '__main__':
     plt.rcParams['font.sans-serif'] = ['SimHei']
     plt.rcParams['axes.unicode_minus'] = False
     
-    config_file = str(args.config)
-    config = Config(config_file)
+    config_file = str(args.config) if args.config is not None else None
+    config = Config(dataset_type=dataset_type, seg_type=segmentor_type, config_path=config_file)
     dataset = create_dataset(config)
     segmentor = create_segmentor(config)
 
     # Test.test_depth_feature(dataset)
     # Test.test_depth_feature_mask(dataset)
     # Test.test_rhd_dataset_mask_count(dataset)
-    Test.test_rhd_dataset_depth_range(dataset)
+    # Test.test_rhd_dataset_depth_range(dataset)
     # Test.test_rhd_dataset_depth_max(dataset)
     # Test.test_senz_dataset(dataset)
 

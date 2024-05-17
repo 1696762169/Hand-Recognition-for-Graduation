@@ -20,7 +20,7 @@ def modify_rhd_depth():
     修改RHD数据集的深度信息 并保存到新的文件中
     """
     # 加载数据集
-    config = Config("rhd")
+    config = Config("data_RHD")
     dataset = RHDDataset(config.dataset_root, set_type=config.dataset_split, to_tensor=False)
 
     def modify_depth(depth: np.ndarray):
@@ -81,8 +81,8 @@ def get_good_features():
     获取较为有效的偏移向量
     """
     # 加载数据集和分类器
-    dataset_config = Config("rhd")
-    segment_config = Config("seg_rdf")
+    dataset_config = Config("data_RHD")
+    segment_config = Config("seg_RDF")
     dataset = RHDDataset(dataset_config.dataset_root, set_type=dataset_config.dataset_split, **dataset_config.get_dataset_params())
     segmentor = RDFSegmentor(**segment_config.get_seg_params())
 
@@ -125,7 +125,7 @@ def get_senz_list():
     """
     获取Senz3D数据集的文件列表
     """
-    config = Config("senz")
+    config = Config("data_Senz")
     dataset_root = config.dataset_root
     data_root = os.path.join(dataset_root, 'data')
 
@@ -143,7 +143,7 @@ def split_iso_to_images():
     """
     将ISO数据集划分为图像文件
     """
-    config = Config("iso")
+    config = Config("data_IsoGD")
     dataset = IsoGDDataset(config.dataset_root, config.dataset_split, False, **config.get_dataset_params())
     sample = dataset[1]
 
