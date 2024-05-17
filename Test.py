@@ -311,7 +311,7 @@ def test_one_tree_predict(dataset: RHDDataset, segmentor: RDFSegmentor, tree: De
         tree = pickle.load(open("SegModel/Test/tree.pkl", "rb"))
 
     # 预测结果
-    pred = segmentor.predict_mask(sample.depth, tree)
+    pred = segmentor.predict_mask_impl(sample.depth, tree)
     # 显示预测结果
     if show_plt:
         __show_segmentation_result(sample, pred)
@@ -327,7 +327,7 @@ def test_forest_predict(dataset: RHDDataset, segmentor: RDFSegmentor, forest: Li
 
     # 预测结果
     return_prob = True
-    pred = segmentor.predict_mask(sample.depth, forest, return_prob=return_prob)
+    pred = segmentor.predict_mask_impl(sample.depth, forest, return_prob=return_prob)
     # 显示预测结果
     __show_segmentation_result(sample, pred, ~return_prob)
 
@@ -382,7 +382,7 @@ def test_one_tree_result(dataset: RHDDataset, segmentor: RDFSegmentor,
             # 预测
             timer = time.perf_counter()
             depth_map = torch.stack([sample.depth for sample in samples])
-            predict_mask = segmentor.predict_mask(depth_map, trees[i])
+            predict_mask = segmentor.predict_mask_impl(depth_map, trees[i])
             logging.info(f'预测耗时: {time.perf_counter() - timer:.4f}s')
             timer = time.perf_counter()
 

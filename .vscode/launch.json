@@ -28,15 +28,15 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "VISTA 方案测试",
+            "name": "Resnet 方案测试",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/VISTA/main.py",
+            "program": "${workspaceFolder}/Resnet/main.py",
             "console": "integratedTerminal",
             "args": ["--mode", "predict", 
                      "--data_base_path", "D:/Python/dataset/temp",
                      "--model_pretrained",
-                     "--model_checkpoint", "./VISTA/checkpoint/checkpoint.ckpt"
+                     "--model_checkpoint", "./Resnet/checkpoint/checkpoint.ckpt"
                 ]
         },
     ]

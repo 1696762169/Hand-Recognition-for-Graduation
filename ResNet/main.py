@@ -13,6 +13,7 @@ from torch.utils.data import Dataset
 import os
 from PIL import Image
 from tqdm import tqdm
+import logging
 
 # Custom
 from model import HandSegModel
@@ -42,19 +43,24 @@ def get_args():
     # print(json.dumps(vars(args), indent=4))
     return args
 
-def get_model(args):
+def get_model(lr: float=3e-4, in_channels: int=3, ck_path: str=None):
     """
-    build the model.
+    构造模型
+    :param lr: 学习率
+    :param in_channels: 输入通道数
+    :param ck_path: 需要加载的checkpoint路径
     """
+    pretrained = ck_path is not None
     model_args = {
-        'pretrained': args.model_pretrained,
-        'lr': args.lr,
-        'in_channels': args.in_channels,
+        'pretrained': pretrained,
+        'lr': lr,
+        'in_channels': in_channels,
     }
-    model = HandSegModel(**model_args)
-    if len(args.model_checkpoint) > 0:
-        model = HandSegModel.load_from_checkpoint(args.model_checkpoint, **model_args)
-        # print(f'Loaded checkpoint from {args.model_checkpoint}.')
+    if pretrained and ck_path is not None:
+        model = HandSegModel.load_from_checkpoint(ck_path, **model_args)
+        logging.debug(f'Loaded checkpoint from {ck_path}.')
+    else:
+        model = HandSegModel(**model_args)
     return model
 
 def get_image_transform(args):
@@ -157,7 +163,7 @@ def main(args):
     """
 
     # Model
-    model = get_model(args)
+    model = get_model(args.lr, args.in_channels, args.model_checkpoint)
     # print("model built")
 
     # Mode

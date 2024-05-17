@@ -1,0 +1,5 @@
+segmentation:    # 分割参数
+  type: 'ResNet'    # 分割算法类型
+  model_path: '.\ResNet\checkpoint\checkpoint.ckpt'    # 模型路径
+  params: False
+    

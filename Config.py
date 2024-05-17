@@ -23,6 +23,7 @@ class Config(object):
         if'segmentation' in self.config:
             segmentation = self.config['segmentation']
             self.seg_type = segmentation['type']
+            self.seg_model_path = segmentation['model_path']
 
         # 评价参数
         if 'evaluation' in self.config:

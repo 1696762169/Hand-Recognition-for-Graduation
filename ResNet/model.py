@@ -48,7 +48,7 @@ class HandSegModel(pl.LightningModule):
         )
         if pretrained:
             deeplab_21 = models.segmentation.deeplabv3_resnet50(
-                pretrained=True,
+                # pretrained=True,
                 # progress=True,
                 weights=models.segmentation.DeepLabV3_ResNet50_Weights.DEFAULT,
                 num_classes=21

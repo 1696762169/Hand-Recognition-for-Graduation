@@ -103,7 +103,7 @@ def get_good_features():
         gt_mask = [sample.mask for sample in test_samples]
         
         depth_map = torch.stack([sample.depth for sample in test_samples])
-        predict_mask = segmentor.predict_mask(depth_map, tree)
+        predict_mask = segmentor.predict_mask_impl(depth_map, tree)
         test_iou = SegmentationEvaluation.mean_iou_static(predict_mask, gt_mask)
 
         # 筛选有效特征

@@ -89,7 +89,7 @@ def create_dataset(config: Config):
 def create_segmentor(config: Config):
     params = config.get_seg_params()
     if config.seg_type == 'RDF':
-        return RDFSegmentor(**params)
+        return RDFSegmentor(config.seg_model_path,**params)
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))

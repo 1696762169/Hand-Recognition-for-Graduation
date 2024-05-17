@@ -25,8 +25,10 @@ def hand_segmentor(pretrained=True, *args, **kwargs):
     if pretrained:
         #os.system('chmod +x ./scripts/download_model_checkpoint.sh')
         #os.system('./scripts/download_model_checkpoint.sh')
-        _download_file_from_google_drive('1w7dztGAsPHD_fl_Kv_a8qHL4eW92rlQg', './checkpoint/checkpoint.ckpt')
-        model = model.load_from_checkpoint('./checkpoint/checkpoint.ckpt', map_location=torch.device('cpu'), *args, **kwargs)
+        ck_path = './Resnet/checkpoint/checkpoint.ckpt'
+        if not os.path.exists(ck_path):
+            _download_file_from_google_drive('1w7dztGAsPHD_fl_Kv_a8qHL4eW92rlQg', ck_path)
+        model = model.load_from_checkpoint(ck_path, map_location=torch.device('cpu'), *args, **kwargs)
     return model
 
 
