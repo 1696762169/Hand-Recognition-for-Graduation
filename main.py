@@ -27,6 +27,7 @@
 # ref: https://github.com/leinlin/Miku-LuaProfiler/
 
 import os
+import sys
 import numpy as np
 import cv2
 import torch
@@ -93,6 +94,7 @@ def create_segmentor(config: Config):
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
     # 解析命令行参数
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='test', help='config file name')
@@ -121,11 +123,11 @@ if __name__ == '__main__':
     # Test.test_depth_feature(dataset)
     # Test.test_depth_feature_mask(dataset)
     # Test.test_rhd_dataset_mask_count(dataset)
-    # Test.test_rhd_dataset_depth_range(dataset)
+    Test.test_rhd_dataset_depth_range(dataset)
     # Test.test_rhd_dataset_depth_max(dataset)
     # Test.test_senz_dataset(dataset)
 
-    Test.test_direct_method(dataset)
+    # Test.test_direct_method(dataset)
 
     # Test.test_iso_dataset_depth_range(dataset)
 

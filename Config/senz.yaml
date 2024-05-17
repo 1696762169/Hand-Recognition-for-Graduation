@@ -6,5 +6,5 @@ dataset:
   to_tensor: True    # 是否转为tensor
   # params: False                     # 数据集参数 应该与Dataset类的关键词参数对应
   params:
-    # use_modified_depth: True    # 是否使用修改过的RHD深度图
+    to_yuv: False    # 是否转为YUV格式
     

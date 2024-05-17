@@ -9,15 +9,16 @@ from typing import Literal
 import logging
 
 class SenzDatasetItem(object):
-    def __init__(self, data_root: str, subject_index: int, ges_index: int, img_index: int, device: torch.device) -> None:
+    def __init__(self, data_root: str, subject_index: int, ges_index: int, img_index: int, to_yuv: bool, device: torch.device) -> None:
         self.subject = subject_index
         self.label = ges_index
         self.path_prefix = f'{data_root}/S{subject_index}/G{ges_index}/{img_index}'
+        self.to_yuv = to_yuv
         self.device = device
 
-        # YUV 图像
+        # 彩色图像
         self.color = cv2.imread(self.path_prefix + '-color.png', cv2.IMREAD_UNCHANGED)
-        self.color = cv2.cvtColor(self.color, cv2.COLOR_BGR2YUV)
+        self.color = cv2.cvtColor(self.color, cv2.COLOR_BGR2YUV if self.to_yuv else cv2.COLOR_BGR2RGB)
         # self.color = self.color.astype(np.float32) / 256.0  # 图像归一化到 [0, 1]
         
         # 深度图像
@@ -41,9 +42,9 @@ class SenzDatasetItem(object):
     @property
     def color_rgb(self) -> np.ndarray:
         if self.device is None:
-            return cv2.cvtColor(self.color, cv2.COLOR_YUV2RGB)
+            return cv2.cvtColor(self.color, cv2.COLOR_YUV2RGB) if self.to_yuv else self.color
         else:
-            return cv2.cvtColor(self.color.cpu().numpy(), cv2.COLOR_YUV2RGB)
+            return cv2.cvtColor(self.color.cpu().numpy(), cv2.COLOR_YUV2RGB) if self.to_yuv else self.color.cpu().numpy()
 
 
 class SenzDataset(Dataset):
@@ -59,6 +60,7 @@ class SenzDataset(Dataset):
                  set_type: Literal["train", "test"] = 'train',
                  to_tensor: bool = True,
                  *,
+                 to_yuv: bool = False,
                  device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
                  buffer_size: int = 0,
                  shared_list: dict[int, SenzDatasetItem] = None) -> None:
@@ -66,6 +68,7 @@ class SenzDataset(Dataset):
         self.data_root = os.path.join(data_root, 'data')
         self.set_type = set_type
         self.to_tensor = to_tensor
+        self.to_yuv = to_yuv
         self.device = device
         self.buffer_size = buffer_size
 
@@ -97,4 +100,4 @@ class SenzDataset(Dataset):
     def __load_item(self, index) -> SenzDatasetItem:
         meta_data = self.meta_data[index]
         logging.debug(f'正在加载Senz3D数据集：{index}')
-        return SenzDatasetItem(self.data_root, meta_data[0], meta_data[1], meta_data[2], self.device)
+        return SenzDatasetItem(self.data_root, meta_data[0], meta_data[1], meta_data[2], self.to_yuv, self.device)
