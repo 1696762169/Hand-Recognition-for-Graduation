@@ -113,8 +113,10 @@ if __name__ == '__main__':
     # Test.test_rhd_dataset_depth_max(dataset)
     # Test.test_senz_dataset(dataset)
 
+    Test.test_senz_bilateral_filter(dataset)
+
     # Test.test_direct_method(dataset)
-    Test.test_resnet_predict(dataset, segmentor)
+    # Test.test_resnet_predict(dataset, segmentor)
 
     # Test.test_iso_dataset_depth_range(dataset)
 

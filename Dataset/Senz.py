@@ -5,6 +5,7 @@ import struct
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from torchvision.transforms import functional as F
 from typing import Literal
 import logging
 
@@ -25,6 +26,8 @@ class SenzDatasetItem(object):
         dw, dh = 320, 240
         self.depth = np.fromfile(self.path_prefix + '-depth.bin', dtype=np.int16, count=dw*dh)
         self.depth = self.depth.reshape((dh, dw)).astype(np.float32) / 65536.0  # 图像归一化到 [0, 1]
+        # self.depth = cv2.GaussianBlur(self.depth, (5, 5), 1)
+        # self.depth = cv2.bilateralFilter(self.depth, d=9, sigmaSpace=75, sigmaColor=0.1)
 
         # 置信度掩码
         self.confidence = np.fromfile(self.path_prefix + '-conf.bin', dtype=np.int16, count=dw*dh)
@@ -61,6 +64,7 @@ class SenzDataset(Dataset):
                  to_tensor: bool = True,
                  *,
                  to_yuv: bool = False,
+
                  device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
                  buffer_size: int = 0,
                  shared_list: dict[int, SenzDatasetItem] = None) -> None:
@@ -100,4 +104,5 @@ class SenzDataset(Dataset):
     def __load_item(self, index) -> SenzDatasetItem:
         meta_data = self.meta_data[index]
         logging.debug(f'正在加载Senz3D数据集：{index}')
-        return SenzDatasetItem(self.data_root, meta_data[0], meta_data[1], meta_data[2], self.to_yuv, self.device)
+        item = SenzDatasetItem(self.data_root, meta_data[0], meta_data[1], meta_data[2], self.to_yuv, self.device)
+        return item

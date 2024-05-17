@@ -27,6 +27,9 @@ class CustomSegmentor(ABC):
     def __init__(self, model_path: str):
         self.model_path = model_path
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # 网格索引缓存
+        self.grid_indices: torch.Tensor = None  # (2, w, h)
+        self.flatten_indices: torch.Tensor = None  # (2, w*h)
 
     @abstractmethod
     def predict_mask(self, rgb_map: torch.Tensor, depth_map: torch.Tensor, return_prob: bool=False) -> np.ndarray:
@@ -37,6 +40,19 @@ class CustomSegmentor(ABC):
         :param return_prob: 是否返回预测概率 否则返回众数（分类结果）
         :return: 分类掩膜 (batch_size, h, w)
         """
+
+    def buffer_grid_indices(self, shape: Tuple[int, int]) -> None:
+        """
+        计算并缓存网格索引
+        :param shape: 图像的尺寸 (w, h)
+        """
+        if self.grid_indices is not None and self.flatten_indices is not None and self.grid_indices.shape[1:] == shape:
+            return
+        indices_x = torch.arange(shape[0], device=self.device)
+        indices_y = torch.arange(shape[1], device=self.device)
+        self.grid_x, self.grid_y = torch.meshgrid(indices_x, indices_y, indexing='ij')
+        self.grid_indices = torch.stack([self.grid_x, self.grid_y], dim=0)
+        self.flatten_indices = torch.stack([self.grid_x.flatten(), self.grid_y.flatten()], dim=0)
 
 
 class DecisionTree(object):
@@ -91,9 +107,6 @@ class RDFSegmentor(CustomSegmentor):
 
         # 随机森林参数
         self.tree_count = tree_count
-
-        # 网格索引缓存
-        self.grid_indices: torch.Tensor = None  # (2, w*h)
 
     @staticmethod
     def get_depth_feature(depth_map: torch.Tensor, u: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
@@ -302,7 +315,7 @@ class RDFSegmentor(CustomSegmentor):
             tree = tree_list[i]
             u = tree.features[tree.features_valid, :2].transpose(0, 1)
             v = tree.features[tree.features_valid, 2:].transpose(0, 1)
-            depth_features = RDFSegmentor.get_multiple_depth_feature(depth_map, self.grid_indices, u, v)  # (map_count, w*h, n)
+            depth_features = RDFSegmentor.get_multiple_depth_feature(depth_map, self.flatten_indices, u, v)  # (map_count, w*h, n)
         
             # 进行预测
             features = torch.zeros(depth_map.numel(), tree.features.shape[0], device=self.device)
@@ -334,19 +347,7 @@ class RDFSegmentor(CustomSegmentor):
         y = length * torch.sin(angle)
         return torch.stack([x, y], dim=0)
     
-    def buffer_grid_indices(self, shape: Tuple[int, int]) -> None:
-        """
-        计算并缓存网格索引
-        :param shape: 图像的尺寸 (w, h)
-        """
-        if self.grid_indices is not None and self.grid_indices.shape[1:] == shape:
-            return
-        indices_x = torch.arange(shape[0], device=self.device)
-        indices_y = torch.arange(shape[1], device=self.device)
-        self.grid_x, self.grid_y = torch.meshgrid(indices_x, indices_y, indexing='ij')
-        self.grid_indices = torch.stack([self.grid_x.flatten(), self.grid_y.flatten()], dim=0)
-
-
+    
 class ResNetSegmentor(CustomSegmentor):
     """
     基于ResNet的语义分割器
@@ -367,26 +368,61 @@ class ResNetSegmentor(CustomSegmentor):
         self.predict_height = predict_height
 
     def predict_mask(self, rgb_map: torch.Tensor, depth_map: torch.Tensor, return_prob: bool=False) -> np.ndarray:
+        pred, center = self.predict_mask_impl(rgb_map, depth_map, return_prob)
+        return pred
+
+    def predict_mask_impl(self, rgb_map: torch.Tensor, depth_map: torch.Tensor, return_prob: bool=False) -> np.ndarray:
+        """
+        预测掩码
+        :param rgb_map: RGB图 (batch_size, h, w, 3) [0, 255]
+        :param depth_map: 深度图 (batch_size, h, w) [0, 1]
+        :param return_prob: 是否返回预测概率 否则返回众数（分类结果）
+        :return: (分类掩膜 (batch_size, h, w), 中心点位置 (batch_size, 2) (y, x))
+        """
+
         # 将图像处理为模型输入
         origin_shape = rgb_map.shape
+        single_input = len(rgb_map.shape) == 3
         predict_map = rgb_map
-        if len(rgb_map.shape) == 3:
+        if single_input:
             predict_map = predict_map[None, :, :, :]
         predict_map = predict_map.to(self.device).permute(0, 3, 1, 2).float() / 255.0
         predict_map = transforms.Resize((self.predict_height, self.predict_width), antialias=False)(predict_map)
         predict_map = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(predict_map)
 
         # 进行预测
-        ret: torch.Tensor = self.model(predict_map).detach()
-        ret = F.softmax(ret, dim=1)[:, 1, :, :] # 手部掩膜概率
+        prob: torch.Tensor = self.model(predict_map).detach()
+        prob = F.softmax(prob, dim=1)[:, 1, :, :] # 手部掩膜概率
 
         # 还原尺寸
-        ret = transforms.Resize((origin_shape[-3], origin_shape[-2]), antialias=False)(ret)
-        if len(origin_shape) == 3:
-            ret = ret[0, :, :]
-        ret = ret.cpu().numpy()
+        prob = transforms.Resize((origin_shape[-3], origin_shape[-2]), antialias=False)(prob)
+        mask = torch.zeros_like(prob, dtype=torch.uint8, device=self.device)
+        mask[prob > 0.5] = 1
 
-        return ret if return_prob else np.array(ret > 0.5, dtype=np.uint8)
+        # 计算中心点
+        indices = torch.nonzero(mask, as_tuple=False).float()
+        center = torch.zeros((prob.shape[0], 2), device=self.device)
+        for i in range(center.shape[0]):
+            i_mask = indices[:, 0] == i
+            if i_mask.sum() == 0:
+                continue
+            center[i, 0] = indices[i_mask, 1].mean().item()
+            center[i, 1] = indices[i_mask, 2].mean().item()
+
+        if single_input:
+            depth_map = depth_map[None, :, :]
+        depth_map = transforms.Resize((origin_shape[-3], origin_shape[-2]), antialias=True)(depth_map)
+        center_depth = depth_map[torch.arange(depth_map.shape[0]), center[:, 0].long(), center[:, 1].long()]
+        center_depth = center_depth[:, None, None]
+        mask |= (depth_map > (center_depth - 0.005)) & (depth_map < (center_depth + 0.005))
+
+        if single_input:
+            prob = prob[0, :, :]
+            mask = mask[0, :, :]
+            center = center[0, :]
+        prob = prob.cpu().numpy()
+        mask = mask.cpu().numpy().astype(np.uint8)
+        return prob if return_prob else mask, center
 
 
 class SkinColorSegmentation(object):

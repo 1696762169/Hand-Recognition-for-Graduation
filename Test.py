@@ -144,6 +144,48 @@ def test_senz_dataset(dataset: SenzDataset):
     plt.tight_layout()
     plt.show()
 
+def test_senz_bilateral_filter(dataset: SenzDataset):
+    """
+    测试Senz数据集的双边滤波效果
+    """
+    sample_idx = np.random.randint(len(dataset))
+    sample = dataset[sample_idx]
+
+    origin_depth = sample.depth.cpu().numpy() if dataset.to_tensor else sample.depth
+
+    # sigma_space, sigma_color = torch.meshgrid(torch.arange(0, 200, 20), torch.arange(0, 8, 1))
+    # col_num, row_num = sigma_space.shape
+    # sigma_space = sigma_space.numpy()
+    # sigma_color = sigma_color.numpy()
+    sigma = np.arange(0, 8, 0.5)
+    pic_count = len(sigma) + 1
+    row_num = math.ceil(math.sqrt(pic_count // 2))
+    col_num = math.ceil(pic_count / row_num)
+
+    fig, axes = plt.subplots(row_num, col_num, figsize=(20, 10))
+    fig.suptitle(f"Senz数据集样本 {sample_idx} 双边滤波")
+    axes[0, 0].imshow(origin_depth, cmap='gray')
+    axes[0, 0].set_title("原始深度图")
+    depth_list = [None] * pic_count
+
+    for i in range(row_num):
+        for j in range(col_num):
+            if i == 0 and j == 0:
+                continue
+            index = i * col_num + j - 1
+            if index + 1 >= pic_count:
+                break
+            axe = axes[i][j]
+            # depth = cv2.bilateralFilter(origin_depth, 9, sigma_space[j][i], sigma_color[j][i])
+            # depth_list[index] = cv2.bilateralFilter(origin_depth, 9, sigma[index], 0)
+            depth_list[index] = cv2.bilateralFilter(origin_depth, 9, 0, sigma[index])
+            axe.imshow(depth_list[index], cmap='gray')
+            # axe.set_title(f"sigma_space: {sigma_space[j][i]}\nsigma_color: {sigma_color[j][i]}")
+            # axe.set_title(f"sigma_color: {sigma[index]}")
+            axe.set_title(f"sigma_space: {sigma[index]}")
+
+    plt.tight_layout()
+    plt.show()
 
 
 def test_depth_feature(dataset: RHDDataset):
@@ -448,8 +490,10 @@ def test_resnet_predict(dataset: SenzDataset | RHDDataset, segmentor: ResNetSegm
     sample_idx = np.random.randint(len(dataset))
     sample = dataset[sample_idx]
 
-    pred = segmentor.predict_mask(sample.color, sample.depth, True)
-    __show_segmentation_result(sample, pred, False)
+    # 预测结果
+    return_prob = False
+    pred, center = segmentor.predict_mask_impl(sample.color, sample.depth, return_prob)
+    __show_segmentation_result(sample, pred, not return_prob)
 
 
 def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: np.ndarray, binary: bool = True):
