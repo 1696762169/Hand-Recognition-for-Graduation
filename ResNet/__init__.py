@@ -1,3 +1,2 @@
-# from ResNet.model import model
-
-__all__ = ['ResNet.model']
+import sys
+sys.path.append(f'./{__package__}/')

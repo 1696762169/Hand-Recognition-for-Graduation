@@ -120,8 +120,7 @@ def test_iso_dataset_depth_range(dataset: IsoGDDataset, sample_idx: int = -1):
 def test_senz_dataset(dataset: SenzDataset):
     """
     测试Senz数据集导入效果
-    """
-    
+    """ 
     sample_idx = np.random.randint(len(dataset))
     sample = dataset[sample_idx]
 

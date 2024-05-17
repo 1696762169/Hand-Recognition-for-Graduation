@@ -43,7 +43,7 @@ from PSO import PSOSolver
 from Utils import Utils
 from HandModel import HandModel
 from Evaluation import Evaluation
-from Segmentation import SkinColorSegmentation, RDFSegmentor
+from Segmentation import ResNetSegmentor, RDFSegmentor
 from Dataset.RHD import RHDDataset
 from Dataset.IsoGD import IsoGDDataset
 from Dataset.Senz import SenzDataset
@@ -82,15 +82,20 @@ def create_dataset(config: Config):
         return RHDDataset(config.dataset_root, config.dataset_split, config.dataset_to_tensor, **params)
     elif config.dataset_type == 'IsoGD':
         return IsoGDDataset(config.dataset_root, config.dataset_split, config.dataset_to_tensor, **params)
-    elif config.dataset_type == 'Senz3d':
+    elif config.dataset_type == 'Senz':
         return SenzDataset(config.dataset_root, config.dataset_split, config.dataset_to_tensor, **params)
     else:
-        raise ValueError('Unsupported dataset type: {}'.format(config.dataset_type))
+        raise ValueError('不支持的数据集类型: {}'.format(config.dataset_type))
 
 def create_segmentor(config: Config):
     params = config.get_seg_params()
     if config.seg_type == 'RDF':
         return RDFSegmentor(config.seg_model_path,**params)
+    elif config.seg_type == 'ResNet':
+        return ResNetSegmentor(config.seg_model_path, **params)
+    else:
+        raise ValueError('不支持的分割器类型: {}'.format(config.seg_type))
+    
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -141,38 +146,3 @@ if __name__ == '__main__':
     #                         #   force_predict=False, 
     #                           tree_count=200, predict_count=5)
     # Test.test_vary_max_depth(dataset, segmentor)
-
-    # test_mask(dataset)
-
-    # seg = SkinColorSegmentation(dataset, config)
-    # seg.segment(sample)
-    # seg_model = seg.load_trained_model(-1, True)
-    # seg_model = seg.load_trained_model()
-    # hist = torch.histc(seg_model.flatten(), bins=256, min=0.02, max=1)
-    # plt.hist(hist.cpu().numpy(), bins=256)
-    # plt.show()
-    # print("{:.6f} {:.6f}".format(float(seg_model.max()), float(seg_model.min())))
-    # print("大于种子阈值的颜色数量：", seg_model[seg_model >= config.seg_seed_threshold].numel())
-    # print("大于区域阈值的颜色数量：", seg_model[seg_model >= config.seg_blob_threshold].numel())
-
-    # particle_num = 10
-    # dim_num = 27
-    # bounds = HandModel.get_bounds()
-    # models = [HandModel() for _ in range(particle_num)]
-    # evaluation = Evaluation(config, dataset, models)
-    # def evaluate(tensor: torch.Tensor) -> torch.Tensor:
-    #     return evaluation.evaluate(tensor)
-    # pso = PSOSolver(particle_num, dim_num, bounds, evaluate)
-    # result = pso.solve()
-    # print("result:", result)
-
-    # model = HandModel()
-    # # model.show()
-    # # model.show(True)
-    # picture = model.render()
-    # print(picture.shape)
-    # print(picture.dtype)
-    # picture = picture[:, :, 0] / 256.0
-    # plt.imshow(picture, cmap='gray')
-    # plt.axis('off')
-    # plt.show()
