@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 
 import torch
 import torch.nn.functional as F
+from torchvision import transforms
 import numpy as np
 from scipy import stats
 
@@ -31,10 +32,10 @@ class CustomSegmentor(ABC):
     def predict_mask(self, rgb_map: torch.Tensor, depth_map: torch.Tensor, return_prob: bool=False) -> np.ndarray:
         """
         预测掩码
-        :param rgb_map: RGB图 (map_count, w, h, 3) [0, 1]
-        :param depth_map: 深度图 (map_count, w, h) [0, 1]
+        :param rgb_map: RGB图 (batch_size, h, w, 3) [0, 255]
+        :param depth_map: 深度图 (batch_size, h, w) [0, 1]
         :param return_prob: 是否返回预测概率 否则返回众数（分类结果）
-        :return: 分类掩膜 (map_count, w, h)
+        :return: 分类掩膜 (batch_size, h, w)
         """
 
 
@@ -71,7 +72,8 @@ class RDFSegmentor(CustomSegmentor):
 
                  tree_count=3,    # 随机森林的树的数量
                  ):
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        super().__init__(model_path=model_path)
+
         # 深度特征采样参数
         self.pixel_count = pixel_count
         # self.thresholds: torch.Tensor[float] = torch.linspace(threshold_min, threshold_max, threshold_split, device=self.device, dtype=torch.float32)
@@ -320,7 +322,6 @@ class RDFSegmentor(CustomSegmentor):
             return mode.astype(np.uint8).reshape(original_shape)
 
 
-
     def get_offset_vectors(self, count: int) -> torch.Tensor:
         """
         获取一组偏移向量
@@ -353,15 +354,40 @@ class ResNetSegmentor(CustomSegmentor):
     def __init__(self,
                  model_path: str,   # 模型路径
                  *,
-                 pixel_count: int=2000,   # 每张图片采样的像素数量
+                 predict_width: int=256,   # 预测输入图像宽度
+                 predict_height: int=256,   # 预测输入图像高度
                  ):
-        
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        super().__init__(model_path=model_path)
+
         self.model = ResNet.get_model(ck_path=model_path)
         _ = self.model.eval()
+        self.device = next(self.model.parameters()).device
+
+        self.predict_width = predict_width
+        self.predict_height = predict_height
 
     def predict_mask(self, rgb_map: torch.Tensor, depth_map: torch.Tensor, return_prob: bool=False) -> np.ndarray:
-        pass
+        # 将图像处理为模型输入
+        origin_shape = rgb_map.shape
+        predict_map = rgb_map
+        if len(rgb_map.shape) == 3:
+            predict_map = predict_map[None, :, :, :]
+        predict_map = predict_map.to(self.device).permute(0, 3, 1, 2).float() / 255.0
+        predict_map = transforms.Resize((self.predict_height, self.predict_width), antialias=False)(predict_map)
+        predict_map = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(predict_map)
+
+        # 进行预测
+        ret: torch.Tensor = self.model(predict_map).detach()
+        ret = F.softmax(ret, dim=1)[:, 1, :, :] # 手部掩膜概率
+
+        # 还原尺寸
+        ret = transforms.Resize((origin_shape[-3], origin_shape[-2]), antialias=False)(ret)
+        if len(origin_shape) == 3:
+            ret = ret[0, :, :]
+        ret = ret.cpu().numpy()
+
+        return ret if return_prob else np.array(ret > 0.5, dtype=np.uint8)
+
 
 class SkinColorSegmentation(object):
     """

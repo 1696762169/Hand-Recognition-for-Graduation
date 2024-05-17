@@ -114,6 +114,7 @@ if __name__ == '__main__':
     # Test.test_senz_dataset(dataset)
 
     # Test.test_direct_method(dataset)
+    Test.test_resnet_predict(dataset, segmentor)
 
     # Test.test_iso_dataset_depth_range(dataset)
 

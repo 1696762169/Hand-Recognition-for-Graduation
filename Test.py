@@ -16,8 +16,8 @@ import logging
 
 from Dataset.RHD import RHDDataset, RHDDatasetItem
 from Dataset.IsoGD import IsoGDDataset
-from Dataset.Senz import SenzDataset
-from Segmentation import RDFSegmentor, DecisionTree
+from Dataset.Senz import SenzDataset, SenzDatasetItem
+from Segmentation import RDFSegmentor, DecisionTree, ResNetSegmentor
 from Evaluation import SegmentationEvaluation
 from Utils import Utils
 
@@ -145,32 +145,6 @@ def test_senz_dataset(dataset: SenzDataset):
     plt.show()
 
 
-def test_direct_method(dataset: SenzDataset):
-    sample_idx = np.random.randint(len(dataset))
-    sample = dataset[sample_idx]
-
-    import torch.hub
-    model = torch.hub.load(
-        # source='local',
-        repo_or_dir='guglielmocamporese/hands-segmentation-pytorch', 
-        model='hand_segmentor', 
-        pretrained=True,
-    )
-
-    # Inference
-    model.eval()
-    rgb = torch.tensor(sample.color_rgb)
-    img_rnd = rgb.permute(2, 1, 0)[None, :, :, :].float() # [B, C, H, W]
-    preds: torch.Tensor = model(img_rnd).argmax(1) # [B, H, W]
-    preds = preds[0].cpu().numpy().T.astype(np.uint8)
-
-    # 绘制结果
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    axes[0].imshow(rgb)
-    axes[0].set_title("RGB")
-    axes[1].imshow(preds, cmap='gray')
-    axes[1].set_title("Preds")
-    plt.show()
 
 def test_depth_feature(dataset: RHDDataset):
     """
@@ -441,16 +415,56 @@ def test_vary_max_depth(dataset: RHDDataset, segmentor: RDFSegmentor):
     plt.tight_layout()
     plt.show()
     
+def test_direct_method(dataset: SenzDataset):
+    sample_idx = np.random.randint(len(dataset))
+    sample = dataset[sample_idx]
 
-def __show_segmentation_result(sample: RHDDatasetItem, pred: np.ndarray, binary: bool = True):
+    import torch.hub
+    model = torch.hub.load(
+        # source='local',
+        repo_or_dir='guglielmocamporese/hands-segmentation-pytorch', 
+        model='hand_segmentor', 
+        pretrained=True,
+    )
+
+    # Inference
+    model.eval()
+    rgb = torch.tensor(sample.color_rgb)
+    img_rnd = rgb.permute(2, 1, 0)[None, :, :, :].float() # [B, C, H, W]
+    preds: torch.Tensor = model(img_rnd).argmax(1) # [B, H, W]
+    preds = preds[0].cpu().numpy().T.astype(np.uint8)
+
+    # 绘制结果
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    axes[0].imshow(rgb)
+    axes[0].set_title("RGB")
+    axes[1].imshow(preds, cmap='gray')
+    axes[1].set_title("Preds")
+    plt.show()
+def test_resnet_predict(dataset: SenzDataset | RHDDataset, segmentor: ResNetSegmentor):
+    """
+    测试 ResNet 的预测效果
+    """
+    sample_idx = np.random.randint(len(dataset))
+    sample = dataset[sample_idx]
+
+    pred = segmentor.predict_mask(sample.color, sample.depth, True)
+    __show_segmentation_result(sample, pred, False)
+
+
+def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: np.ndarray, binary: bool = True):
     """
     显示分割结果
     :param sample: 样本数据
     :param pred: 预测结果 (width, height)
     """
-    mask_color = np.zeros((sample.mask.shape[0], sample.mask.shape[1], 3), dtype=np.uint8)
-    mask_color[sample.mask == 0] = [255, 255, 255]  # 背景
-    mask_color[sample.mask == 1] = [0, 255, 0]  # 手部
+    mask_is_conf = hasattr(sample, 'confidence')
+    if mask_is_conf:
+        mask_color = sample.confidence
+    else:
+        mask_color = np.zeros((sample.mask.shape[0], sample.mask.shape[1], 3), dtype=np.uint8)
+        mask_color[sample.mask == 0] = [255, 255, 255]  # 背景
+        mask_color[sample.mask == 1] = [0, 255, 0]  # 手部
 
     if binary:
         pred_color = np.zeros((pred.shape[0], pred.shape[1], 3), dtype=np.uint8)
@@ -462,7 +476,7 @@ def __show_segmentation_result(sample: RHDDatasetItem, pred: np.ndarray, binary:
     fig, axes = plt.subplots(1, 3, figsize=(10, 5))
     axes[0].imshow(sample.depth.cpu(), cmap='gray')
     axes[0].set_title("原始图像")
-    axes[1].imshow(mask_color)
+    axes[1].imshow(mask_color, cmap='gray' if mask_is_conf else None)
     axes[1].set_title("Ground Truth")
     axes[2].imshow(pred_color, cmap='gray' if not binary else None)
     axes[2].set_title("预测结果")

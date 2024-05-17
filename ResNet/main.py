@@ -152,6 +152,11 @@ def get_predict_dataset(args):
                 "height": H,
                 "width": W,
             }
+            # img_arr = np.array(image)
+            # img_tensor = torch.from_numpy(img_arr).permute(2, 0, 1)
+            # img_resize = transforms.Resize((args.height, args.width))(image)
+            # img_tensor_resize = transforms.Resize((args.height, args.width))(img_tensor)
+            # img_arr_resize = np.array(img_resize)
             if self.transform is not None:
                 sample["image"] = self.transform(sample["image"])
             return sample, image_path

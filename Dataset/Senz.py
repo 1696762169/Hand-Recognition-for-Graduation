@@ -29,7 +29,7 @@ class SenzDatasetItem(object):
         # 置信度掩码
         self.confidence = np.fromfile(self.path_prefix + '-conf.bin', dtype=np.int16, count=dw*dh)
         self.confidence = self.confidence.reshape((dh, dw)).astype(np.float32) / 65536.0  # 图像归一化到 [0, 1]
-        self.mask = self.confidence > 0.05  # 掩码
+        self.mask = self.confidence > 0.02  # 掩码
 
         if device is not None:
             self.color = self.__to_device(self.color, device)

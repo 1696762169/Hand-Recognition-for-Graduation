@@ -36,7 +36,10 @@
             "args": ["--mode", "predict", 
                      "--data_base_path", "D:/Python/dataset/temp",
                      "--model_pretrained",
-                     "--model_checkpoint", "./Resnet/checkpoint/checkpoint.ckpt"
+                     "--model_checkpoint", "./Resnet/checkpoint/checkpoint.ckpt",
+                    //  "--width", "128",
+                    //  "--height", "128",
+                    // "--in_channels", "4",
                 ]
         },
     ]
