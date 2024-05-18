@@ -46,14 +46,17 @@ from PSO import PSOSolver
 from Utils import Utils
 from HandModel import HandModel
 from Evaluation import Evaluation
-from Segmentation import ResNetSegmentor, RDFSegmentor
 from Dataset.RHD import RHDDataset
 from Dataset.IsoGD import IsoGDDataset
 from Dataset.Senz import SenzDataset
+from Segmentation import ResNetSegmentor, RDFSegmentor
+from Tracker import ThreeDSCTracker
 import Test
 
-dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
-segmentor_type: Literal['RDF', 'ResNet'] = 'ResNet'
+dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
+# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
+segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
+tracker_type: Literal['3DSC'] = '3DSC'
 
 def create_dataset(config: Config):
     params = config.get_dataset_params()
@@ -75,6 +78,12 @@ def create_segmentor(config: Config):
     else:
         raise ValueError('不支持的分割器类型: {}'.format(config.seg_type))
     
+def create_tracker(config: Config):
+    params = config.get_track_params()
+    if config.track_type == '3DSC':
+        return ThreeDSCTracker(**params)
+    else:
+        raise ValueError('不支持的追踪器类型: {}'.format(config.track_type))
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -102,9 +111,10 @@ if __name__ == '__main__':
     plt.rcParams['axes.unicode_minus'] = False
     
     config_file = str(args.config) if args.config is not None else None
-    config = Config(dataset_type=dataset_type, seg_type=segmentor_type, config_path=config_file)
+    config = Config(dataset_type=dataset_type, seg_type=segmentor_type, track_type=tracker_type, config_path=config_file)
     dataset = create_dataset(config)
     segmentor = create_segmentor(config)
+    tracker = create_tracker(config)
 
     # Test.test_depth_feature(dataset)
     # Test.test_depth_feature_mask(dataset)
@@ -113,7 +123,7 @@ if __name__ == '__main__':
     # Test.test_rhd_dataset_depth_max(dataset)
     # Test.test_senz_dataset(dataset)
 
-    Test.test_senz_bilateral_filter(dataset)
+    # Test.test_senz_bilateral_filter(dataset)
 
     # Test.test_direct_method(dataset)
     # Test.test_resnet_predict(dataset, segmentor)
@@ -130,3 +140,5 @@ if __name__ == '__main__':
     #                         #   force_predict=False, 
     #                           tree_count=200, predict_count=5)
     # Test.test_vary_max_depth(dataset, segmentor)
+
+    Test.test_contour_extract(dataset, tracker)

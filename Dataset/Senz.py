@@ -27,7 +27,7 @@ class SenzDatasetItem(object):
         self.depth = np.fromfile(self.path_prefix + '-depth.bin', dtype=np.int16, count=dw*dh)
         self.depth = self.depth.reshape((dh, dw)).astype(np.float32) / 65536.0  # 图像归一化到 [0, 1]
         # self.depth = cv2.GaussianBlur(self.depth, (5, 5), 1)
-        # self.depth = cv2.bilateralFilter(self.depth, d=9, sigmaSpace=75, sigmaColor=0.1)
+        self.depth = cv2.bilateralFilter(self.depth, d=9, sigmaSpace=75, sigmaColor=0.1)
 
         # 置信度掩码
         self.confidence = np.fromfile(self.path_prefix + '-conf.bin', dtype=np.int16, count=dw*dh)

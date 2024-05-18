@@ -5,6 +5,7 @@ import math
 import pickle
 from typing import List
 import torch
+from torchvision import transforms
 import pandas as pd
 import numpy as np
 import cv2
@@ -18,6 +19,7 @@ from Dataset.RHD import RHDDataset, RHDDatasetItem
 from Dataset.IsoGD import IsoGDDataset
 from Dataset.Senz import SenzDataset, SenzDatasetItem
 from Segmentation import RDFSegmentor, DecisionTree, ResNetSegmentor
+from Tracker import ThreeDSCTracker
 from Evaluation import SegmentationEvaluation
 from Utils import Utils
 
@@ -495,6 +497,34 @@ def test_resnet_predict(dataset: SenzDataset | RHDDataset, segmentor: ResNetSegm
     pred, center = segmentor.predict_mask_impl(sample.color, sample.depth, return_prob)
     __show_segmentation_result(sample, pred, not return_prob)
 
+
+def test_contour_extract(dataset: RHDDataset, tracker: ThreeDSCTracker):
+    """
+    测试轮廓提取
+    """
+    sample_idx = np.random.randint(len(dataset))
+    sample = dataset[sample_idx]
+
+    pred = torch.tensor(sample.mask)
+    depth_contour = tracker.extract_contour(sample.depth)
+    color = transforms.Grayscale(num_output_channels=1)(sample.color.permute(2, 0, 1))[0]
+    color_contour = tracker.extract_contour(color)
+    # depth_contour = tracker.extract_contour(pred)
+    
+    fig, axes = plt.subplots(1, 4, figsize=(20, 10))
+
+    axes[0].imshow(sample.depth.cpu(), cmap='gray')
+    axes[0].set_title("原始图像")
+    axes[1].imshow(sample.mask, cmap='gray')
+    axes[1].set_title("Ground Truth")
+
+    axes[2].imshow(depth_contour.cpu().numpy(), cmap='gray')
+    axes[2].set_title("深度图轮廓提取")
+    axes[3].imshow(color_contour.cpu().numpy(), cmap='gray')
+    axes[3].set_title("彩色图轮廓提取")
+
+    plt.tight_layout()
+    plt.show()
 
 def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: np.ndarray, binary: bool = True):
     """

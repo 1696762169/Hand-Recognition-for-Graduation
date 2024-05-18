@@ -8,6 +8,7 @@ class Config(object):
                  *,
                  dataset_type: str | None = None,
                  seg_type: str | None = None,
+                 track_type: str | None = None,
                  config_path: str | None = None):
         
         # 加载配置文件
@@ -49,6 +50,19 @@ class Config(object):
             self.seg_type = segmentation['type']
             self.seg_model_path = segmentation['model_path']
 
+        # 跟踪算法参数
+        if 'track_type' in self.config:
+            track_type = self.config['track_type']
+        if 'tracking' not in self.config and track_type is not None:
+            with open(os.path.join(config_dir, f'trk_{track_type}.yaml'), 'r', encoding='utf-8') as f:
+                self.config['tracking'] = yaml.load(f, Loader=yaml.FullLoader)['tracking']
+        else:
+            self.config['tracking'] = {}
+        if len(self.config['tracking']) > 0:
+            tracking = self.config['tracking']
+            self.track_type = tracking['type']
+
+
         # 评价参数
         if 'evaluation' in self.config:
             evaluation = self.config['evaluation']
@@ -70,3 +84,12 @@ class Config(object):
             return params
         else:
             return {}
+        
+    def get_track_params(self) -> dict:
+        if 'params' in self.config['tracking']:
+            params = self.config['tracking']['params']
+            params = params if isinstance(params, dict) else {}
+            return params
+        else:
+            return {}
+
