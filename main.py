@@ -53,8 +53,8 @@ from Segmentation import ResNetSegmentor, RDFSegmentor
 from Tracker import ThreeDSCTracker
 import Test
 
-# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
-dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
+dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
+# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
 segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
 tracker_type: Literal['3DSC'] = '3DSC'
 
@@ -141,4 +141,5 @@ if __name__ == '__main__':
     #                           tree_count=200, predict_count=5)
     # Test.test_vary_max_depth(dataset, segmentor)
 
-    Test.test_contour_extract(dataset, tracker)
+    # Test.test_contour_extract(dataset, tracker)
+    Test.test_simplify_contour(dataset, tracker)

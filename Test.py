@@ -511,6 +511,8 @@ def test_contour_extract(dataset: RHDDataset, tracker: ThreeDSCTracker):
     # color = transforms.Grayscale(num_output_channels=1)(sample.color.permute(2, 0, 1))[0]
     # color_contour = tracker.extract_contour(color, pred)
     # depth_contour = tracker.extract_contour(pred, pred)
+    # plt.hist(depth_contour.cpu().numpy().flatten(), bins=100, range=(0, 1), alpha=0.75)
+    # plt.show()
     
     fig, axes = plt.subplots(1, 4, figsize=(20, 10))
 
@@ -526,6 +528,37 @@ def test_contour_extract(dataset: RHDDataset, tracker: ThreeDSCTracker):
 
     plt.tight_layout()
     plt.show()
+def test_simplify_contour(dataset: RHDDataset, tracker: ThreeDSCTracker):
+    """
+    测试简化轮廓算法效果
+    """
+    sample_idx = np.random.randint(len(dataset))
+    # sample_idx = 0
+    sample = dataset[sample_idx]
+
+    pred = torch.tensor(sample.mask)
+    depth_contour = tracker.extract_contour(sample.depth, pred)
+    simplified_contour = tracker.simplify_contour(depth_contour).cpu().numpy()
+
+    new_contour = np.zeros_like(sample.depth.cpu())
+    new_contour[simplified_contour[:, 0], simplified_contour[:, 1]] = 1
+    
+    plt.figure(figsize=(15, 7))
+    plt.title(f"简化轮廓算法效果 样本 {sample_idx}")
+    plt.subplot(1, 3, 1)
+    plt.imshow(sample.depth.cpu(), cmap='gray')
+    plt.suptitle("原始深度图像")
+
+    plt.subplot(1, 3, 2)
+    plt.imshow(depth_contour.cpu(), cmap='gray')
+    plt.suptitle("提取的轮廓")
+
+    plt.subplot(1, 3, 3)
+    plt.imshow(new_contour, cmap='gray')
+    plt.suptitle("简化后的轮廓")
+
+    plt.show()
+
 
 def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: np.ndarray, binary: bool = True):
     """

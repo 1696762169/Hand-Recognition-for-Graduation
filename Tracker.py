@@ -46,8 +46,19 @@ class ThreeDSCTracker:
     """
     def __init__(self,
                  *,
-                 device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
+                 device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+                 contour_threshold=0.5,     # 应用sobel算子后被认为是轮廓像素的阈值
+                 contour_max_points=100,  # 轮廓最大点数
+                 coutour_simplify_eplision=0.0005,  # 轮廓简化精度 （与轮廓长度相乘）
+                 use_naive_simplify=False,  # 是否使用简单的轮廓简化算法
+                 ):
         self.device = device
+
+        # 轮廓简化参数
+        self.contour_threshold = contour_threshold
+        self.contour_max_points = contour_max_points
+        self.coutour_simplify_eplision = coutour_simplify_eplision
+        self.use_naive_simplify = use_naive_simplify
 
     def extract_contour(self, depth_map: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
@@ -88,8 +99,9 @@ class ThreeDSCTracker:
         # depth_std = torch.sqrt(torch.sum((depth_map - depth_mean)**2 * mask, dim=(1, 2)) / mask_sum)
         # threshold = depth_std[:, None, None] * 0.5
         depth_mask = mask == 1
-        depth_mask |= (depth_map > depth_mean - 3 * threshold) & (depth_map < depth_mean + 3 * threshold)
-        depth_mask &= (depth_map > depth_mean - 5 * threshold) & (depth_map < depth_mean + 5 * threshold)
+        or_scale, and_scale = 1.0, 2.0
+        depth_mask |= (depth_map > depth_mean - or_scale * threshold) & (depth_map < depth_mean + or_scale * threshold)
+        # depth_mask &= (depth_map > depth_mean - and_scale * threshold) & (depth_map < depth_mean + and_scale * threshold)
 
         # 计算后的掩码图也仅考虑最大的区域
         for i in range(batch_size):
@@ -110,3 +122,36 @@ class ThreeDSCTracker:
         # return depth_mask.float()[0, :, :] if single_input else depth_mask.float()
         # return masked_depth_map[0, :, :] if single_input else masked_depth_map
         return grad_magnitude[0, 0, :, :] if single_input else grad_magnitude[:, 0, :, :]
+    
+    def simplify_contour(self, contour: torch.Tensor | np.ndarray) -> torch.Tensor | np.ndarray:
+        """
+        简化轮廓
+        :param contour: 轮廓特征 (H, W) [0, 1]
+        :return: 简化后的轮廓index (point_count, 2)
+        """
+        is_tensor = isinstance(contour, torch.Tensor)
+        device = contour.device if is_tensor else torch.device('cpu')
+        contour: np.ndarray = contour.cpu().numpy() if is_tensor else contour
+
+        # 获取contour中值为1的点的坐标
+        contour[contour < self.contour_threshold] = 0
+        contour_indices = np.nonzero(contour)
+        contour_indices = np.stack(contour_indices, axis=1)
+
+        # 进行曲线简化
+        if self.use_naive_simplify:
+            current_length = contour_indices.shape[0]
+            if current_length > self.contour_max_points:
+                simplified_indices = (np.arange(self.contour_max_points, dtype=np.float32) * current_length / self.contour_max_points).astype(np.int32)
+                contour_indices = contour_indices[simplified_indices, :]
+        else:
+            while contour_indices.shape[0] > self.contour_max_points:
+                last_length = contour_indices.shape[0]
+                epsilon = self.coutour_simplify_eplision * cv2.arcLength(contour_indices, closed=True)
+                contour_indices = cv2.approxPolyDP(contour_indices, epsilon=epsilon, closed=True)
+                if contour_indices.shape[0] == last_length:
+                    break
+        
+        if len(contour_indices.shape) == 3:
+            contour_indices = contour_indices[:, 0, :]
+        return torch.from_numpy(contour_indices).to(device) if is_tensor else contour_indices
