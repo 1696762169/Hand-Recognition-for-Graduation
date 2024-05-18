@@ -118,6 +118,8 @@ class ThreeDSCTracker:
         # 计算梯度
         grad_magnitude: torch.Tensor = sobel_op(masked_depth_map[:, None, :, :])
         grad_magnitude = grad_magnitude.detach()
+        final_threshold = torch.mean(depth_map[depth_mask]) + 0.1
+        grad_magnitude[:, 0, :, :][depth_map > final_threshold] = 0     # 最后过滤掉可能被计入的背景值
 
         # return depth_mask.float()[0, :, :] if single_input else depth_mask.float()
         # return masked_depth_map[0, :, :] if single_input else masked_depth_map

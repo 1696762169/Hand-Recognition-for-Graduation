@@ -542,20 +542,27 @@ def test_simplify_contour(dataset: RHDDataset, tracker: ThreeDSCTracker):
 
     new_contour = np.zeros_like(sample.depth.cpu())
     new_contour[simplified_contour[:, 0], simplified_contour[:, 1]] = 1
+
+    contour_depth = sample.depth.cpu().numpy()[simplified_contour[:, 0], simplified_contour[:, 1]]
     
+    figure_count = 3
     plt.figure(figsize=(15, 7))
     plt.title(f"简化轮廓算法效果 样本 {sample_idx}")
-    plt.subplot(1, 3, 1)
+    plt.subplot(1, figure_count, 1)
     plt.imshow(sample.depth.cpu(), cmap='gray')
     plt.suptitle("原始深度图像")
 
-    plt.subplot(1, 3, 2)
+    plt.subplot(1, figure_count, 2)
     plt.imshow(depth_contour.cpu(), cmap='gray')
     plt.suptitle("提取的轮廓")
 
-    plt.subplot(1, 3, 3)
+    plt.subplot(1, figure_count, 3)
     plt.imshow(new_contour, cmap='gray')
     plt.suptitle("简化后的轮廓")
+
+    # plt.subplot(1, figure_count, 4)
+    # plt.bar(np.arange(len(contour_depth)), contour_depth)
+    # plt.suptitle("轮廓的深度")
 
     plt.show()
 
