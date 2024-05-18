@@ -53,8 +53,8 @@ from Segmentation import ResNetSegmentor, RDFSegmentor
 from Tracker import ThreeDSCTracker
 import Test
 
-dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
-# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
+# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
+dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
 segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
 tracker_type: Literal['3DSC'] = '3DSC'
 

@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import functional as F
+from scipy.ndimage import distance_transform_edt
 from typing import Literal
 import logging
 
@@ -30,9 +31,12 @@ class SenzDatasetItem(object):
         self.depth = cv2.bilateralFilter(self.depth, d=9, sigmaSpace=75, sigmaColor=0.1)
 
         # 置信度掩码
-        self.confidence = np.fromfile(self.path_prefix + '-conf.bin', dtype=np.int16, count=dw*dh)
-        self.confidence = self.confidence.reshape((dh, dw)).astype(np.float32) / 65536.0  # 图像归一化到 [0, 1]
-        self.mask = self.confidence > 0.02  # 掩码
+        self.confidence = np.fromfile(self.path_prefix + '-conf.bin', dtype=np.int16, count=dw*dh).reshape((dh, dw))
+        threshold, mask = cv2.threshold(self.confidence.astype(np.uint8), 0, 65535, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        self.confidence = self.confidence.astype(np.float32) / 65536.0  # 图像归一化到 [0, 1]
+        # print(f'阈值：{threshold}')
+        self.mask = self.confidence > threshold / 65536.0 * 5 # 掩码
+        # self.mask = mask != 0  # 掩码
 
         if device is not None:
             self.color = self.__to_device(self.color, device)

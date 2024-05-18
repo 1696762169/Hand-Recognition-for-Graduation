@@ -503,13 +503,14 @@ def test_contour_extract(dataset: RHDDataset, tracker: ThreeDSCTracker):
     测试轮廓提取
     """
     sample_idx = np.random.randint(len(dataset))
+    # sample_idx = 0
     sample = dataset[sample_idx]
 
     pred = torch.tensor(sample.mask)
-    depth_contour = tracker.extract_contour(sample.depth)
-    color = transforms.Grayscale(num_output_channels=1)(sample.color.permute(2, 0, 1))[0]
-    color_contour = tracker.extract_contour(color)
-    # depth_contour = tracker.extract_contour(pred)
+    depth_contour = tracker.extract_contour(sample.depth, pred)
+    # color = transforms.Grayscale(num_output_channels=1)(sample.color.permute(2, 0, 1))[0]
+    # color_contour = tracker.extract_contour(color, pred)
+    # depth_contour = tracker.extract_contour(pred, pred)
     
     fig, axes = plt.subplots(1, 4, figsize=(20, 10))
 
@@ -520,8 +521,8 @@ def test_contour_extract(dataset: RHDDataset, tracker: ThreeDSCTracker):
 
     axes[2].imshow(depth_contour.cpu().numpy(), cmap='gray')
     axes[2].set_title("深度图轮廓提取")
-    axes[3].imshow(color_contour.cpu().numpy(), cmap='gray')
-    axes[3].set_title("彩色图轮廓提取")
+    # axes[3].imshow(color_contour.cpu().numpy(), cmap='gray')
+    # axes[3].set_title("彩色图轮廓提取")
 
     plt.tight_layout()
     plt.show()
