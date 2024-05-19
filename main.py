@@ -22,8 +22,8 @@
       #####       ###        ###      #        
         ###       ###        ###               
          ##       ###        ###               
-#_________#_______####_______####______________#
-             #我们的未来没有BUG#
+#_________#_______####_______####_____________#
+             #我们的未来没有BUG#                 
 # ref: https://github.com/leinlin/Miku-LuaProfiler/
 
 import os
@@ -55,8 +55,8 @@ from Classification import DTWClassifier
 import Test
 import Preprocess
 
-dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
-# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
+# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
+dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
 segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
 tracker_type: Literal['3DSC'] = '3DSC'
 classifier_type: Literal['DTW'] = 'DTW'
@@ -159,5 +159,5 @@ if __name__ == '__main__':
     # Test.test_dtw_distance(dataset, tracker, classifier)
 
     feature_dir = "Dataset/Features"
-    # Preprocess.calculate_features(dataset, segmentor, tracker, feature_dir)
+    Preprocess.calculate_features(dataset, segmentor, tracker, feature_dir)
     Test.test_feature_load(dataset, tracker, classifier, feature_dir)

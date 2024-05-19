@@ -167,7 +167,7 @@ def calculate_features(dataset: RHDDataset | SenzDataset, segmentor: ResNetSegme
     file = open(os.path.join(output_dir, f'features_{type(dataset).__name__}_{dataset.set_type}.bin'), 'wb')
     
     seek_pos = []
-    sample_count = 10
+    sample_count = len(dataset)
     file.seek(4 * (1 + sample_count))
 
     for i in tqdm(range(sample_count), desc='计算特征向量'):
