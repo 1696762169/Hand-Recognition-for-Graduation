@@ -53,6 +53,7 @@ from Segmentation import ResNetSegmentor, RDFSegmentor
 from Tracker import ThreeDSCTracker
 from Classification import DTWClassifier
 import Test
+import Preprocess
 
 dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
 # dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
@@ -155,4 +156,8 @@ if __name__ == '__main__':
     # Test.test_simplify_contour(dataset, tracker)
     # Test.test_descriptor_features(dataset, tracker)
 
-    Test.test_dtw_distance(dataset, tracker, classifier)
+    # Test.test_dtw_distance(dataset, tracker, classifier)
+
+    feature_dir = "Dataset/Features"
+    # Preprocess.calculate_features(dataset, segmentor, tracker, feature_dir)
+    Test.test_feature_load(dataset, tracker, classifier, feature_dir)

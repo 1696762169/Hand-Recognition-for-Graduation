@@ -1,3 +1,4 @@
+import struct
 from typing import Tuple
 
 import torch
@@ -40,3 +41,46 @@ class DTWClassifier(object):
         """
 
         return 0.5 * np.sum((x_point - y_point) ** 2 / (x_point + y_point + 1e-6))
+    
+    @staticmethod
+    def to_byte(features: np.ndarray, sample_idx: int, cls: int) -> bytes:
+        """
+        将特征转换为字节数据
+        :param features: 特征 (point_count, feature_count)
+        :param sample_idx: 样本索引
+        :param cls: 类别索引
+        :return: 字节数据
+        """
+        # 转换为字节数组
+        features_bytes = features.astype(np.float32).tobytes()
+        point_count = features.shape[0]
+        return struct.pack('III', sample_idx, cls, point_count) + features_bytes
+    
+    @staticmethod
+    def from_byte(data: bytes) -> Tuple[np.ndarray, int, int]:
+        """
+        从字节数据中解析特征
+        :param data: 字节数据
+        :return: (特征, 样本索引, 类别索引)
+        """
+        sample_idx, cls, point_count = struct.unpack('III', data[:12])
+        features = np.frombuffer(data[12:], dtype=np.float32).reshape(point_count, -1)
+        return features, sample_idx, cls
+    
+    def from_file(file_path: str, sample_idx: int) -> Tuple[np.ndarray, int, int]:
+        """
+        从文件中解析特征
+        :param file_path: 文件路径
+        :param sample_idx: 样本索引
+        :return: (特征, 类别索引)
+        """
+        with open(file_path, 'rb') as f:
+            sample_count = struct.unpack('I', f.read(4))[0]
+            sample_pos = np.frombuffer(f.read(sample_count * 4), dtype=np.int32)
+            f.seek((sample_idx + 1) * 4)
+            sample_seek = struct.unpack('i', f.read(4))[0]
+            f.seek(sample_seek)
+            byte_count = struct.unpack('I', f.read(4))[0]
+            data = f.read(byte_count)
+            return DTWClassifier.from_byte(data)
+        

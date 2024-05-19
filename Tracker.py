@@ -67,6 +67,21 @@ class ThreeDSCTracker:
         self.length_block = length_block
         self.angle_block = angle_block
 
+    def __call__(self, depth_map: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        """
+        提取3D-SC描述符特征
+        :param depth_map: 深度图 (B, H, W) [0, 1]
+        :param mask: 预测手部掩码图 (B, H, W) 0/1
+        :return: 3D-SC描述符特征 (point_count, length_block, angle_block)
+        """
+        # 提取轮廓
+        contour = self.extract_contour(depth_map, mask)
+        # 简化轮廓
+        simplified_contour = self.simplify_contour(contour)
+        # 计算特征
+        features = self.get_descriptor_features(simplified_contour, depth_map)
+        return features
+
     def extract_contour(self, depth_map: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
         提取轮廓特征

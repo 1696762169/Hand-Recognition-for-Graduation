@@ -1,15 +1,16 @@
 import os
 import yaml
+from typing import Literal
 from Dataset.RHD import RHDDataset
 from Dataset.IsoGD import IsoGDDataset
 
 class Config(object):
     def __init__(self, 
                  *,
-                 dataset_type: str | None = None,
-                 seg_type: str | None = None,
-                 track_type: str | None = None,
-                 cls_type: str | None = None,
+                 dataset_type: Literal['RHD', 'IsoGD', 'Senz'] | None = None,
+                 seg_type: Literal['RDF', 'ResNet'] | None = None,
+                 track_type: Literal['3DSC'] | None = None,
+                 cls_type: Literal['DTW'] | None = None,
                  config_path: str | None = None):
         
         # 加载配置文件

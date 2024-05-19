@@ -630,6 +630,21 @@ def test_dtw_distance(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracke
 
     plt.show()
 
+def test_feature_load(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker, classifier: DTWClassifier, file_dir: str):
+    """
+    测试加载特征文件
+    """
+    sample_idx = np.random.randint(10)
+    # sample_idx = 0
+    sample = dataset[sample_idx]
+
+    calc_features = tracker(sample.depth, torch.tensor(sample.mask))
+    calc_features = calc_features.cpu().numpy().reshape(calc_features.shape[0], -1)
+    
+    file_path = f"{file_dir}/features_{type(dataset).__name__}_{dataset.set_type}.bin"
+    feature, _, _ = DTWClassifier.from_file(file_path, sample_idx)
+
+    assert np.abs(calc_features - feature).max() < 1e-6, "特征计算结果与加载结果不一致"
 
 def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: np.ndarray, binary: bool = True):
     """

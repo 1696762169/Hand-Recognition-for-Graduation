@@ -1,5 +1,6 @@
 # 此文件用于进行预处理任务
 import os
+import struct
 from tqdm import tqdm
 import argparse
 import numpy as np
@@ -12,7 +13,10 @@ from matplotlib import pyplot as plt
 from Config import Config
 from Dataset.RHD import RHDDataset
 from Dataset.IsoGD import IsoGDDataset
-from Segmentation import RDFSegmentor
+from Dataset.Senz import SenzDataset
+from Segmentation import ResNetSegmentor, RDFSegmentor
+from Tracker import ThreeDSCTracker
+from Classification import DTWClassifier
 from Evaluation import SegmentationEvaluation
 
 def modify_rhd_depth():
@@ -20,7 +24,7 @@ def modify_rhd_depth():
     修改RHD数据集的深度信息 并保存到新的文件中
     """
     # 加载数据集
-    config = Config("data_RHD")
+    config = Config(config_path="data_RHD")
     dataset = RHDDataset(config.dataset_root, set_type=config.dataset_split, to_tensor=False)
 
     def modify_depth(depth: np.ndarray):
@@ -81,8 +85,8 @@ def get_good_features():
     获取较为有效的偏移向量
     """
     # 加载数据集和分类器
-    dataset_config = Config("data_RHD")
-    segment_config = Config("seg_RDF")
+    dataset_config = Config(config_path="data_RHD")
+    segment_config = Config(config_path="seg_RDF")
     dataset = RHDDataset(dataset_config.dataset_root, set_type=dataset_config.dataset_split, **dataset_config.get_dataset_params())
     segmentor = RDFSegmentor(**segment_config.get_seg_params())
 
@@ -125,7 +129,7 @@ def get_senz_list():
     """
     获取Senz3D数据集的文件列表
     """
-    config = Config("data_Senz")
+    config = Config(config_path="data_Senz")
     dataset_root = config.dataset_root
     data_root = os.path.join(dataset_root, 'data')
 
@@ -143,7 +147,7 @@ def split_iso_to_images():
     """
     将ISO数据集划分为图像文件
     """
-    config = Config("data_IsoGD")
+    config = Config(config_path="data_IsoGD")
     dataset = IsoGDDataset(config.dataset_root, config.dataset_split, False, **config.get_dataset_params())
     sample = dataset[1]
 
@@ -152,6 +156,40 @@ def split_iso_to_images():
         img_path = os.path.join(des, f'{i:05d}.png')
         cv2.imwrite(img_path, sample.get_rgb_frame(i), [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
+def calculate_features(dataset: RHDDataset | SenzDataset, segmentor: ResNetSegmentor, tracker: ThreeDSCTracker, output_dir: str):
+    """
+    获取特征向量并保存到文件中
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    no_label = isinstance(dataset, RHDDataset)
+    file = open(os.path.join(output_dir, f'features_{type(dataset).__name__}_{dataset.set_type}.bin'), 'wb')
+    
+    seek_pos = []
+    sample_count = 10
+    file.seek(4 * (1 + sample_count))
+
+    for i in tqdm(range(sample_count), desc='计算特征向量'):
+        sample = dataset[i]
+        pred = torch.tensor(sample.mask)
+        depth_contour = tracker.extract_contour(sample.depth, pred)
+        simplified_contour = tracker.simplify_contour(depth_contour)
+        features = tracker.get_descriptor_features(simplified_contour, sample.depth)
+
+        features = features.cpu().numpy().reshape(features.shape[0], -1)
+        byte = DTWClassifier.to_byte(features, i, 0 if no_label else sample.label)
+        seek_pos.append(file.tell())    # 记录文件指针位置
+
+        # check_features, _, _ = DTWClassifier.from_byte(byte)
+        file.write(struct.pack('I', len(byte)))
+        file.write(byte)
+
+    seek_pos = np.array(seek_pos, dtype=np.uint32)
+    file.seek(0)
+    file.write(struct.pack('I', len(seek_pos)))
+    file.write(seek_pos.tobytes())
+    file.close()
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
