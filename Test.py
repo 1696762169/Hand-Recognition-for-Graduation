@@ -20,6 +20,7 @@ from Dataset.IsoGD import IsoGDDataset
 from Dataset.Senz import SenzDataset, SenzDatasetItem
 from Segmentation import RDFSegmentor, DecisionTree, ResNetSegmentor
 from Tracker import ThreeDSCTracker
+from Classification import DTWClassifier
 from Evaluation import SegmentationEvaluation
 from Utils import Utils
 
@@ -498,7 +499,7 @@ def test_resnet_predict(dataset: SenzDataset | RHDDataset, segmentor: ResNetSegm
     __show_segmentation_result(sample, pred, not return_prob)
 
 
-def test_contour_extract(dataset: RHDDataset, tracker: ThreeDSCTracker):
+def test_contour_extract(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker):
     """
     测试轮廓提取
     """
@@ -528,7 +529,7 @@ def test_contour_extract(dataset: RHDDataset, tracker: ThreeDSCTracker):
 
     plt.tight_layout()
     plt.show()
-def test_simplify_contour(dataset: RHDDataset, tracker: ThreeDSCTracker):
+def test_simplify_contour(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker):
     """
     测试简化轮廓算法效果
     """
@@ -565,7 +566,7 @@ def test_simplify_contour(dataset: RHDDataset, tracker: ThreeDSCTracker):
     # plt.suptitle("轮廓的深度")
 
     plt.show()
-def test_descriptor_features(dataset: RHDDataset, tracker: ThreeDSCTracker):
+def test_descriptor_features(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker):
     """
     测试获取3D-SC描述符特征
     """
@@ -587,15 +588,48 @@ def test_descriptor_features(dataset: RHDDataset, tracker: ThreeDSCTracker):
     depth_axe.imshow(sample.depth.cpu(), cmap='gray')
 
     feature_axe = plt.subplot(1, 2, 2)
-    feature_axe.set_title("特征图")
-    feature_axe.imshow(__get_feature_image(features[0]), cmap='gray')
-    plt.xticks(np.arange(0, features.shape[2], 1) * 100 + 50, np.arange(0, features.shape[2], 1))
-    plt.xlabel("角度区间")
-    plt.yticks(np.arange(0, features.shape[1], 1) * 100 + 50, np.arange(0, features.shape[1], 1))
-    plt.ylabel("长度区间")
+    _set_feature_axe(feature_axe, features)
 
     plt.tight_layout()
     plt.show()
+
+
+def test_dtw_distance(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker, classifier: DTWClassifier):
+    """
+    测试 DTW 距离计算结果
+    """
+    sample_idx = [np.random.randint(len(dataset)) for _ in range(2)]
+    # sample_idx = 0
+    samples = [dataset[idx] for idx in sample_idx]
+
+    features_list: List[torch.Tensor] = []
+    for i in range(len(sample_idx)):
+        sample = samples[i]
+        pred = torch.tensor(sample.mask)
+        depth_contour = tracker.extract_contour(sample.depth, pred)
+        simplified_contour = tracker.simplify_contour(depth_contour)
+        features = tracker.get_descriptor_features(simplified_contour, sample.depth)
+        features_list.append(features)
+        
+    flatten_features = [features.reshape(features.shape[0], -1) for features in features_list]
+    distance, path = classifier.get_distance(flatten_features[0], flatten_features[1])
+    
+    # 将path 展示为折线图
+    # plt.figure(figsize=(10, 5))
+    # plt.suptitle(f"DTW 距离计算结果 样本 {sample_idx}")
+
+    # depth_axe = plt.subplot(1, 2, 1)
+    # depth_axe.set_title("原始图像")
+    # depth_axe.imshow(samples[0].depth.cpu(), cmap='gray')
+
+    # feature_axe = plt.subplot(1, 2, 2)
+    # _set_feature_axe(feature_axe, features_list[0])
+
+    plt.plot(path[0], path[1])
+    plt.title(f"样本 {sample_idx[0]} 到样本 {sample_idx[1]} 的DTW路径\n距离: {distance:.4f}")
+
+    plt.show()
+
 
 def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: np.ndarray, binary: bool = True):
     """
@@ -628,6 +662,20 @@ def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: n
 
     plt.tight_layout()
     plt.show()
+
+def _set_feature_axe(axe: plt.Axes, features: torch.Tensor | np.ndarray):
+    """
+    显示特征图
+    """
+    image = __get_feature_image(features if len(features.shape) == 2 else features[0])
+    axe.set_title("特征图")
+    axe.imshow(image, cmap='gray')
+    axe.set_xticks(np.arange(0, features.shape[-1], 1) * 100 + 50)
+    axe.set_xticklabels(np.arange(0, features.shape[-1], 1))
+    axe.set_xlabel("角度区间")
+    axe.set_yticks(np.arange(0, features.shape[-2], 1) * 100 + 50)
+    axe.set_yticklabels(np.arange(0, features.shape[-2], 1))
+    axe.set_ylabel("长度区间")
 
 def __get_feature_image(features: torch.Tensor | np.ndarray) -> np.ndarray:
     """

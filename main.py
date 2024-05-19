@@ -51,12 +51,14 @@ from Dataset.IsoGD import IsoGDDataset
 from Dataset.Senz import SenzDataset
 from Segmentation import ResNetSegmentor, RDFSegmentor
 from Tracker import ThreeDSCTracker
+from Classification import DTWClassifier
 import Test
 
 dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
 # dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
 segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
 tracker_type: Literal['3DSC'] = '3DSC'
+classifier_type: Literal['DTW'] = 'DTW'
 
 def create_dataset(config: Config):
     params = config.get_dataset_params()
@@ -85,6 +87,13 @@ def create_tracker(config: Config):
     else:
         raise ValueError('不支持的追踪器类型: {}'.format(config.track_type))
 
+def create_classifier(config: Config):
+    params = config.get_cls_params()
+    if config.cls_type == 'DTW':
+        return DTWClassifier(**params)
+    else:
+        raise ValueError('不支持的分类器类型: {}'.format(config.cls_type))
+
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -111,10 +120,11 @@ if __name__ == '__main__':
     plt.rcParams['axes.unicode_minus'] = False
     
     config_file = str(args.config) if args.config is not None else None
-    config = Config(dataset_type=dataset_type, seg_type=segmentor_type, track_type=tracker_type, config_path=config_file)
+    config = Config(dataset_type=dataset_type, seg_type=segmentor_type, track_type=tracker_type, cls_type=classifier_type, config_path=config_file)
     dataset = create_dataset(config)
     segmentor = create_segmentor(config)
     tracker = create_tracker(config)
+    classifier = create_classifier(config)
 
     # Test.test_depth_feature(dataset)
     # Test.test_depth_feature_mask(dataset)
@@ -143,4 +153,6 @@ if __name__ == '__main__':
 
     # Test.test_contour_extract(dataset, tracker)
     # Test.test_simplify_contour(dataset, tracker)
-    Test.test_descriptor_features(dataset, tracker)
+    # Test.test_descriptor_features(dataset, tracker)
+
+    Test.test_dtw_distance(dataset, tracker, classifier)

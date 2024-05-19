@@ -1,0 +1,4 @@
+classification:
+  type: 'DTW'
+  # params:
+    # threshold: 0.05

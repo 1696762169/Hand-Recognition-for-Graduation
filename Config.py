@@ -9,6 +9,7 @@ class Config(object):
                  dataset_type: str | None = None,
                  seg_type: str | None = None,
                  track_type: str | None = None,
+                 cls_type: str | None = None,
                  config_path: str | None = None):
         
         # 加载配置文件
@@ -62,6 +63,17 @@ class Config(object):
             tracking = self.config['tracking']
             self.track_type = tracking['type']
 
+        # 分类算法参数
+        if 'cls_type' in self.config:
+            cls_type = self.config['cls_type']
+        if 'classification' not in self.config and cls_type is not None:
+            with open(os.path.join(config_dir, f'cls_{cls_type}.yaml'), 'r', encoding='utf-8') as f:
+                self.config['classification'] = yaml.load(f, Loader=yaml.FullLoader)['classification']
+        else:
+            self.config['classification'] = {}
+        if len(self.config['classification']) > 0:
+            classification = self.config['classification']
+            self.cls_type = classification['type']
 
         # 评价参数
         if 'evaluation' in self.config:
@@ -92,4 +104,14 @@ class Config(object):
             return params
         else:
             return {}
+        
+    def get_cls_params(self) -> dict:
+        if 'params' in self.config['classification']:
+            params = self.config['classification']['params']
+            params = params if isinstance(params, dict) else {}
+            return params
+        else:
+            return {}
+
+
 
