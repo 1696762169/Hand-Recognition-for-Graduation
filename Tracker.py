@@ -51,6 +51,9 @@ class ThreeDSCTracker:
                  contour_max_points=100,  # 轮廓最大点数
                  coutour_simplify_eplision=0.0005,  # 轮廓简化精度 （与轮廓长度相乘）
                  use_naive_simplify=False,  # 是否使用简单的轮廓简化算法
+
+                 length_block=5,    # 弯曲块长度区间数量
+                 angle_block=12,    # 弯曲块角度区间数量
                  ):
         self.device = device
 
@@ -59,6 +62,10 @@ class ThreeDSCTracker:
         self.contour_max_points = contour_max_points
         self.coutour_simplify_eplision = coutour_simplify_eplision
         self.use_naive_simplify = use_naive_simplify
+
+        # 弯曲块参数
+        self.length_block = length_block
+        self.angle_block = angle_block
 
     def extract_contour(self, depth_map: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
@@ -157,3 +164,42 @@ class ThreeDSCTracker:
         if len(contour_indices.shape) == 3:
             contour_indices = contour_indices[:, 0, :]
         return torch.from_numpy(contour_indices).to(device) if is_tensor else contour_indices
+    
+    def get_descriptor_features(self, contour: torch.Tensor, depth_map: torch.Tensor) -> torch.Tensor:
+        """
+        获取3D-SC描述符特征
+        :param contour: 轮廓特征 (point_count, 2)
+        :param depth_map: 深度图 (H, W) [0, 1]
+        :return: 3D-SC描述符特征 (point_count, length_block, angle_block)
+        """
+        point_count = contour.shape[0]
+        contour = contour.int().to(self.device)
+        depth_map = depth_map.float().to(self.device)
+
+        # 计算各个边缘点之间的距离向量 (dy, dx, dz)
+        depth = depth_map[contour[:, 0], contour[:, 1]]
+        relative_depth = torch.repeat_interleave((depth - depth.min()).unsqueeze(1), point_count, dim=1)
+        diff_vec = (contour[:, None, :] - contour[None, :, :]).permute(2, 0, 1).float()
+        diff_vec += torch.eye(point_count, device=self.device)[None, :, :] * 1e-6
+
+        # 极坐标向量
+        angle = torch.atan2(diff_vec[0], diff_vec[1])
+        log_len = torch.log(torch.norm(diff_vec, p=2, dim=0))
+        len_max = log_len.max().item()
+
+        # 计算弯曲块 将数值离散化为特征区间
+        angle_bins = torch.linspace(-torch.pi - 1e-4, torch.pi, self.angle_block + 1, device=self.device)
+        length_bins = torch.linspace(- 1e-4, len_max, self.length_block + 1, device=self.device)
+        angle_indices = torch.bucketize(angle, angle_bins) - 1
+        length_indices = torch.bucketize(log_len, length_bins) - 1
+        
+        # 计算3D-SC描述符特征
+        features = torch.zeros((self.length_block, self.angle_block, point_count), device=self.device)
+        for l in range(self.length_block):
+            for a in range(self.angle_block):
+                mask = ((length_indices == l) & (angle_indices == a)).float()
+                # test = relative_depth * mask
+                features[l, a] = torch.sum(relative_depth * mask, dim=1)
+        
+        return features.permute(2, 0, 1)
+

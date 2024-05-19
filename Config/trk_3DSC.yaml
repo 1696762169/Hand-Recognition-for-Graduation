@@ -5,3 +5,6 @@ tracking:
     contour_max_points: 80  # 轮廓的最大点数
     coutour_simplify_eplision: 0.0001  # 轮廓简化的精度 （与轮廓长度相乘）
     use_naive_simplify: True  # 是否使用简单的轮廓简化算法
+
+    length_block: 5  # 弯曲块长度区间数量
+    angle_block: 12  # 弯曲块角度区间数量

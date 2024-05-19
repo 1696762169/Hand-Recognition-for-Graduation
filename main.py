@@ -142,4 +142,5 @@ if __name__ == '__main__':
     # Test.test_vary_max_depth(dataset, segmentor)
 
     # Test.test_contour_extract(dataset, tracker)
-    Test.test_simplify_contour(dataset, tracker)
+    # Test.test_simplify_contour(dataset, tracker)
+    Test.test_descriptor_features(dataset, tracker)
