@@ -19,24 +19,31 @@ class FastDTW(object):
     """
     dist_timer: float = 0
     min_timer: float = 0
+    extend_timer: float = 0
 
     @staticmethod
-    def fastdtw(x: np.ndarray | torch.Tensor, y: np.ndarray | torch.Tensor, radius: int = 1, dist=None) -> Tuple[float, List[Tuple[int, int]]]:
+    def fastdtw(x: np.ndarray | torch.Tensor, 
+                y: np.ndarray | torch.Tensor, 
+                radius: int = 1, 
+                dist=None,
+                parallel=False) -> Tuple[float, List[Tuple[int, int]]]:
         """
         使用FastDTW算法计算两个序列的 DTW 距离
         :param x: 序列 1
         :param y: 序列 2
         :param radius: 扩展窗口半径
         :param dist: 距离函数，默认为欧氏距离
+        :param parallel: 并行计算距离
         :return: 距离值和路径
         """
         FastDTW.dist_timer = 0
         FastDTW.min_timer = 0
+        FastDTW.extend_timer = 0
         x, y, dist = FastDTW.__prep_inputs(x, y, dist)
-        return FastDTW.__fastdtw_gpu(x, y, radius, dist)
+        return FastDTW.__fastdtw(x, y, radius, dist, parallel)
 
     @staticmethod
-    def dtw(x, y, dist=None):
+    def dtw(x, y, dist=None, parallel=False) -> Tuple[float, List[Tuple[int, int]]]:
         """
         计算两个序列的 DTW 距离
         :param x: 序列 1
@@ -46,8 +53,9 @@ class FastDTW(object):
         """
         FastDTW.dist_timer = 0
         FastDTW.min_timer = 0
+        FastDTW.extend_timer = 0
         x, y, dist = FastDTW.__prep_inputs(x, y, dist)
-        return FastDTW.__dtw(x, y, dist)
+        return FastDTW.__dtw(x, y, dist, parallel=parallel)
     
 
     @staticmethod
@@ -76,21 +84,26 @@ class FastDTW(object):
         return x, y, dist
 
     @staticmethod
-    def __fastdtw_gpu(x: torch.Tensor, y: torch.Tensor, radius: int, dist) -> Tuple[float, List[Tuple[int, int]]]:
+    def __fastdtw(x: torch.Tensor, y: torch.Tensor, radius: int, dist, parallel: bool) -> Tuple[float, List[Tuple[int, int]]]:
         min_time_size = radius + 2
         len_x, len_y = x.shape[0], y.shape[0]
         if len_x < min_time_size or len_y < min_time_size:
-            return FastDTW.__dtw(x, y, dist)
+            return FastDTW.__dtw(x, y, dist, parallel = parallel)
 
         x_shrinked = FastDTW.__reduce_by_half(x)
         y_shrinked = FastDTW.__reduce_by_half(y)
 
-        distance, path = FastDTW.__fastdtw_gpu(x_shrinked, y_shrinked, radius=radius, dist=dist)
+        distance, path = FastDTW.__fastdtw(x_shrinked, y_shrinked, radius, dist, parallel)
+        # print(f"custom distance: {distance} size: {x_shrinked.shape[0]}")
         window = FastDTW.__expand_window(path, len_x, len_y, radius)
-        return FastDTW.__dtw(x, y, dist, window)
+        return FastDTW.__dtw(x, y, dist, window, parallel)
 
     @staticmethod
-    def __dtw(x: torch.Tensor | np.ndarray, y: torch.Tensor | np.ndarray, dist, window: np.ndarray | None=None) -> Tuple[float, List[Tuple[int, int]]]:
+    def __dtw(x: torch.Tensor | np.ndarray, 
+              y: torch.Tensor | np.ndarray, 
+              dist, 
+              window: np.ndarray | None=None,
+              parallel: bool = False) -> Tuple[float, List[Tuple[int, int]]]:
         """
         实现DTW算法
         :param x: 序列 1
@@ -103,6 +116,16 @@ class FastDTW(object):
         if window is None:
             window = np.stack(np.nonzero(np.ones((len_x, len_y), dtype=np.byte)), axis=1)
         window_next = window.copy() + 1
+
+        # timer = time.perf_counter()
+        distance = np.zeros((len_x, len_y), dtype=np.float32)
+        if parallel:
+            distance[window[:, 0], window[:, 1]] = dist(x, y, window)
+        else:
+            for pos in range(window.shape[0]):
+                i, j = window[pos]
+                distance[i, j] = dist(x[i], y[j])
+        # FastDTW.dist_timer += time.perf_counter() - timer
         
         D = np.ones((len_x + 1, len_y + 1), dtype=np.float32) * float('inf')
         D[0, 0] = 0.0
@@ -112,18 +135,14 @@ class FastDTW(object):
         for pos in range(window.shape[0]):
             i, j = window[pos]
             i_next, j_next = window_next[pos]
-            timer = time.perf_counter()
+            # timer = time.perf_counter()
             temp = min((D[i, j_next], i, j_next), 
                     (D[i_next, j], i_next, j),
                     (D[i, j], i, j), 
                     key = lambda a: a[0])
-            FastDTW.min_timer += time.perf_counter() - timer
+            # FastDTW.min_timer += time.perf_counter() - timer
 
-            timer = time.perf_counter()
-            dt = dist(x[i], y[j])
-            FastDTW.dist_timer += time.perf_counter() - timer
-
-            D[i_next, j_next] = dt + temp[0]
+            D[i_next, j_next] = distance[i, j] + temp[0]
             record[i_next, j_next] = temp[1:]
                 
         path = []
@@ -137,13 +156,32 @@ class FastDTW(object):
 
     @staticmethod
     def __reduce_by_half(x: np.ndarray) ->  np.ndarray:
-        return cv2.resize(x, (x.shape[1] // 2, x.shape[0] // 2), interpolation=cv2.INTER_LINEAR)
+        end_inx = x.shape[0] if x.shape[0] % 2 == 0 else x.shape[0] - 1
+        return (x[:end_inx:2] + x[1::2]) / 2
+        # new_shape = list(x.shape)
+        # new_shape[0] = max(x.shape[0] // 2, 1)
+        # return np.resize(x, new_shape)
+        # return cv2.resize(x, new_shape, interpolation=cv2.INTER_LINEAR)
     def __reduce_by_half_gpu(x: torch.Tensor) -> torch.Tensor:
         x = F.interpolate(x[:, :, None].permute(2, 1, 0), scale_factor=0.5, mode='linear', align_corners=False)
         return x[0].permute(1, 0)
 
     @staticmethod
     def __expand_window(path, len_x, len_y, radius):
+        # timer = time.perf_counter()
+        # path = np.array(path)
+        # window = np.zeros((path[:, 0].max() + 1, path[:, 1].max() + 1), dtype=np.float32)
+        # for i, j in path:
+        #     window[i, j] = 1
+        
+        # k_size = 2 * radius + 1
+        # if k_size < window.shape[0] and k_size < window.shape[1]:
+        #     kernal = np.ones((k_size, k_size), dtype=np.float32)
+        #     window = np.convolve(window, kernal, mode='same')
+        # window = np.resize(window, (len_x, len_y))
+        # ret = np.array(np.nonzero(window)).T
+        # FastDTW.extend_timer += time.perf_counter() - timer
+        # return ret
         path_ = set(path)
         for i, j in path:
             for a, b in ((i + a, j + b)
@@ -170,6 +208,7 @@ class FastDTW(object):
                     break
             start_j = new_start_j
 
+        # FastDTW.extend_timer += time.perf_counter() - timer
         return np.array(window)
     
     @staticmethod
@@ -205,16 +244,12 @@ class DTWClassifier(object):
             path, distance = ts.dtw_path(x_features, y_features)
             return distance, np.array(path)
         elif self.dtw_type == 'fastdtw':
-            distance, path = dtw(x_features, y_features, dist=DTWClassifier.__get_point_distance)
+            distance, path = fastdtw(x_features, y_features, dist=DTWClassifier.__get_point_distance)
             path_ret = np.array(path).T
             return distance, path_ret
         elif self.dtw_type == 'custom':
-            grid_x, grid_y = np.meshgrid(np.arange(x_features.shape[0]), np.arange(y_features.shape[0]), indexing='ij')
-            x_points, y_points = x_features[grid_x.flatten()], y_features[grid_y.flatten()]
-            dist: np.ndarray = 0.5 * np.sum((x_points - y_points) ** 2 / (x_points + y_points + 1e-6), axis=1)
-            dist = dist.reshape(x_features.shape[0], y_features.shape[0])
-
-            distance, path = FastDTW.dtw(np.arange(x_features.shape[0]), np.arange(y_features.shape[0]), dist=dist)
+            distance, path = FastDTW.fastdtw(x_features, y_features, dist=DTWClassifier.__get_point_distance_parallel, parallel=True)
+            # distance, path = FastDTW.fastdtw(x_features, y_features, dist=DTWClassifier.__get_point_distance)
             path_ret = np.array(path).T
             return distance, path_ret
         else:
@@ -246,6 +281,20 @@ class DTWClassifier(object):
         :return: 两点之间的距离
         """
         return 0.5 * np.sum((x_point - y_point) ** 2 / (x_point + y_point + 1e-6))
+    @staticmethod
+    def __get_point_distance_parallel(x_features: np.ndarray, y_features: np.ndarray, window: np.ndarray) -> float:
+        """
+        并行计算两个序列之间的距离
+        :param x_features: 序列1的特征 (x_count, feature_count)
+        :param y_features: 序列2的特征 (y_count, feature_count)
+        :param window: 计算窗口 (window_size, 2)
+        :return: 序列之间的距离
+        """
+        x_points, y_points = x_features[window[:, 0]], y_features[window[:, 1]]
+        dist: np.ndarray = 0.5 * np.sum((x_points - y_points) ** 2 / (x_points + y_points + 1e-6), axis=1)
+        return dist
+
+
     @staticmethod
     def __get_point_distance_gpu(x_point: torch.Tensor, y_point: torch.Tensor) -> float:
         return (0.5 * torch.sum((x_point - y_point) ** 2 / (x_point + y_point + 1e-6))).item()

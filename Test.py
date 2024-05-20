@@ -635,15 +635,15 @@ def test_custom_fastdtw(dataset: RHDDataset | SenzDataset, feature_dir: str):
     测试自定义的DTW算法效果
     """
     sample_idx = [np.random.randint(len(dataset)) for _ in range(2)]
-    # sample_idx = [0, 1]
-    samples = [dataset[idx] for idx in sample_idx]
+    sample_idx = [0, 1]
+    # samples = [dataset[idx] for idx in sample_idx]
 
     features_list: List[torch.Tensor] = []
     file_path = __get_feature_path(feature_dir, type(dataset).__name__, dataset.set_type)
     for idx in sample_idx:
         feature, _, _ = DTWClassifier.from_file(file_path, idx)
-        # features_list.append(feature.repeat(10, 0))
-        features_list.append(feature)
+        features_list.append(feature.repeat(10, 0))
+        # features_list.append(feature)
 
     fastdtw_cls = DTWClassifier(dtw_type='fastdtw')
     custom_cls = DTWClassifier(dtw_type='custom')
@@ -652,16 +652,20 @@ def test_custom_fastdtw(dataset: RHDDataset | SenzDataset, feature_dir: str):
     fastdtw_dist, _ = fastdtw_cls.get_distance(features_list[0], features_list[1])
     fastdtw_time = time.perf_counter() - timer
 
+    # timer = time.perf_counter()
+    # gpu_dist, _ = custom_cls.get_distance_gpu(torch.tensor(features_list[0]).to(custom_cls.device), torch.tensor(features_list[1]).to(custom_cls.device))
+    # gpu_time = time.perf_counter() - timer
+
     timer = time.perf_counter()
     custom_dist, _ = custom_cls.get_distance(features_list[0], features_list[1])
     custom_time = time.perf_counter() - timer
 
-    timer = time.perf_counter()
-    custom_dist, _ = custom_cls.get_distance_gpu(torch.tensor(features_list[0]).to(custom_cls.device), torch.tensor(features_list[1]).to(custom_cls.device))
-    gpu_time = time.perf_counter() - timer
-
-    print(f"fastdtw 耗时: {fastdtw_time:.4f}s 自定义DTW算法耗时: {custom_time:.4f}s (numpy) {gpu_time:.4f}s (gpu)")
-    print(f"取最小值耗时: {FastDTW.min_timer:.4f}s 计算距离耗时: {FastDTW.dist_timer:.4f}s")
+    # print(f"fastdtw 耗时: {fastdtw_time:.4f}s 自定义DTW算法耗时: {custom_time:.4f}s (numpy) {gpu_time:.4f}s (gpu)")
+    print(f"fastdtw 耗时: {fastdtw_time:.4f}s 自定义DTW算法耗时: {custom_time:.4f}s")
+    min_timer_str = str.format("{:.4f}s", FastDTW.min_timer) if FastDTW.min_timer != 0 else '未计时'
+    dist_timer_str = str.format("{:.4f}s", FastDTW.dist_timer) if FastDTW.dist_timer != 0 else '未计时'
+    extend_timer_str = str.format("{:.4f}s", FastDTW.extend_timer) if FastDTW.extend_timer != 0 else '未计时'
+    print(f"取最小值耗时: {min_timer_str} 计算距离耗时: {dist_timer_str} 扩展索引耗时: {extend_timer_str}")
     assert abs(fastdtw_dist - custom_dist) < (fastdtw_dist + custom_dist) * 0.01, f"自定义DTW算法与fastdtw算法结果不一致 fastdtw: {fastdtw_dist:.4f} 自定义: {custom_dist:.4f}"
 
 def test_feature_load(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker, classifier: DTWClassifier, file_dir: str):
