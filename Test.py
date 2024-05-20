@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import cv2
 from skimage import exposure
+from fastdtw import fastdtw
 from sklearn.tree import export_text
 from matplotlib import pyplot as plt
 from tqdm import tqdm
@@ -20,7 +21,7 @@ from Dataset.IsoGD import IsoGDDataset
 from Dataset.Senz import SenzDataset, SenzDatasetItem
 from Segmentation import RDFSegmentor, DecisionTree, ResNetSegmentor
 from Tracker import ThreeDSCTracker
-from Classification import DTWClassifier
+from Classification import DTWClassifier, FastDTW
 from Evaluation import SegmentationEvaluation
 from Utils import Utils
 
@@ -612,7 +613,7 @@ def test_dtw_distance(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracke
         features_list.append(features)
         
     flatten_features = [features.reshape(features.shape[0], -1) for features in features_list]
-    distance, path = classifier.get_distance(flatten_features[0], flatten_features[1])
+    distance, path = classifier.get_distance_gpu(flatten_features[0], flatten_features[1])
     
     # 将path 展示为折线图
     # plt.figure(figsize=(10, 5))
@@ -629,6 +630,39 @@ def test_dtw_distance(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracke
     plt.title(f"样本 {sample_idx[0]} 到样本 {sample_idx[1]} 的DTW路径\n距离: {distance:.4f}")
 
     plt.show()
+def test_custom_fastdtw(dataset: RHDDataset | SenzDataset, feature_dir: str):
+    """
+    测试自定义的DTW算法效果
+    """
+    sample_idx = [np.random.randint(len(dataset)) for _ in range(2)]
+    # sample_idx = [0, 1]
+    samples = [dataset[idx] for idx in sample_idx]
+
+    features_list: List[torch.Tensor] = []
+    file_path = __get_feature_path(feature_dir, type(dataset).__name__, dataset.set_type)
+    for idx in sample_idx:
+        feature, _, _ = DTWClassifier.from_file(file_path, idx)
+        # features_list.append(feature.repeat(10, 0))
+        features_list.append(feature)
+
+    fastdtw_cls = DTWClassifier(dtw_type='fastdtw')
+    custom_cls = DTWClassifier(dtw_type='custom')
+
+    timer = time.perf_counter()
+    fastdtw_dist, _ = fastdtw_cls.get_distance(features_list[0], features_list[1])
+    fastdtw_time = time.perf_counter() - timer
+
+    timer = time.perf_counter()
+    custom_dist, _ = custom_cls.get_distance(features_list[0], features_list[1])
+    custom_time = time.perf_counter() - timer
+
+    timer = time.perf_counter()
+    custom_dist, _ = custom_cls.get_distance_gpu(torch.tensor(features_list[0]).to(custom_cls.device), torch.tensor(features_list[1]).to(custom_cls.device))
+    gpu_time = time.perf_counter() - timer
+
+    print(f"fastdtw 耗时: {fastdtw_time:.4f}s 自定义DTW算法耗时: {custom_time:.4f}s (numpy) {gpu_time:.4f}s (gpu)")
+    print(f"取最小值耗时: {FastDTW.min_timer:.4f}s 计算距离耗时: {FastDTW.dist_timer:.4f}s")
+    assert abs(fastdtw_dist - custom_dist) < (fastdtw_dist + custom_dist) * 0.01, f"自定义DTW算法与fastdtw算法结果不一致 fastdtw: {fastdtw_dist:.4f} 自定义: {custom_dist:.4f}"
 
 def test_feature_load(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker, classifier: DTWClassifier, file_dir: str):
     """
@@ -639,12 +673,14 @@ def test_feature_load(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracke
     sample = dataset[sample_idx]
 
     calc_features = tracker(sample.depth, torch.tensor(sample.mask))
-    calc_features = calc_features.cpu().numpy().reshape(calc_features.shape[0], -1)
+    calc_features: np.ndarray = calc_features.cpu().numpy().reshape(calc_features.shape[0], -1)
     
-    file_path = f"{file_dir}/features_{type(dataset).__name__}_{dataset.set_type}.bin"
+    file_path = __get_feature_path(file_dir, type(dataset).__name__, dataset.set_type)
     feature, _, _ = DTWClassifier.from_file(file_path, sample_idx)
-
     assert np.abs(calc_features - feature).max() < 1e-6, "特征计算结果与加载结果不一致"
+
+    features, _, _ = DTWClassifier.from_file_all(file_path)
+    assert np.abs(features[sample_idx] - calc_features).max() < 1e-6, "特征计算结果与加载结果不一致"
 
 def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: np.ndarray, binary: bool = True):
     """
@@ -700,3 +736,6 @@ def __get_feature_image(features: torch.Tensor | np.ndarray) -> np.ndarray:
         features = features.cpu().numpy()
     features = features / max(features.max(), 1)
     return np.repeat(features, 100, axis=0).repeat(100, axis=1)
+
+def __get_feature_path(file_dir: str, dataset_type: str, dataset_split: str) -> str:
+    return f"{file_dir}/features_{dataset_type}_{dataset_split}.bin"

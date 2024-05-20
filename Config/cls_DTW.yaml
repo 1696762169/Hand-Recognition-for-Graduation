@@ -1,4 +1,4 @@
 classification:
   type: 'DTW'
-  # params:
-    # threshold: 0.05
+  params:
+    dtw_type: 'tslearn' # 使用的DTW算法实现 'fastdtw', 'tslearn', 'custom'

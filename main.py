@@ -55,8 +55,8 @@ from Classification import DTWClassifier
 import Test
 import Preprocess
 
-# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
-dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
+dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
+# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
 segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
 tracker_type: Literal['3DSC'] = '3DSC'
 classifier_type: Literal['DTW'] = 'DTW'
@@ -156,8 +156,13 @@ if __name__ == '__main__':
     # Test.test_simplify_contour(dataset, tracker)
     # Test.test_descriptor_features(dataset, tracker)
 
-    # Test.test_dtw_distance(dataset, tracker, classifier)
 
-    feature_dir = "Dataset/Features"
-    Preprocess.calculate_features(dataset, segmentor, tracker, feature_dir)
-    Test.test_feature_load(dataset, tracker, classifier, feature_dir)
+    feature_dir = "./Dataset/Features"
+    dtw_dir = "./SegModel/DTW"
+    # Preprocess.calculate_features(dataset, segmentor, tracker, feature_dir)
+    # Preprocess.calculate_features_distance(dataset, classifier, feature_dir, dtw_dir)
+
+    # Test.test_feature_load(dataset, tracker, classifier, feature_dir)
+
+    # Test.test_dtw_distance(dataset, tracker, classifier)
+    Test.test_custom_fastdtw(dataset, feature_dir)

@@ -1,11 +1,13 @@
 # 此文件用于进行预处理任务
 import os
 import struct
+import time
 from tqdm import tqdm
 import argparse
 import numpy as np
 import cv2
 import torch
+from tslearn.metrics import dtw_path, cdist_dtw
 from tqdm import tqdm
 import logging
 from matplotlib import pyplot as plt
@@ -190,6 +192,32 @@ def calculate_features(dataset: RHDDataset | SenzDataset, segmentor: ResNetSegme
     file.write(struct.pack('I', len(seek_pos)))
     file.write(seek_pos.tobytes())
     file.close()
+
+def calculate_features_distance(dataset: SenzDataset, classifier: DTWClassifier, feature_dir: str, output_dir: str):
+    """
+    计算特征之间的距离并保存到文件中
+    """
+    file_name = f'features_{type(dataset).__name__}_{dataset.set_type}.bin'
+    if not os.path.exists(os.path.join(feature_dir, file_name)):
+        return
+    features, _, labels = DTWClassifier.from_file_all(os.path.join(feature_dir, file_name))
+    # features = [torch.from_numpy(feature.copy()).to(classifier.device) for feature in features ]
+
+    n_features = len(features)
+    distance = np.zeros((n_features, n_features), dtype=np.float32)
+    for i in tqdm(range(n_features * n_features), desc='计算特征距离'):
+        x, y = i // n_features, i % n_features
+        if x == y:
+            distance[x, y] = 0.0
+        elif x < y:
+            x_feature, y_feature = features[x], features[y]
+            dist, _ = classifier.get_distance(x_feature, y_feature)
+            distance[x, y] = distance[y, x] = dist
+
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    np.savetxt(os.path.join(output_dir, f'distance_{type(dataset).__name__}_{dataset.set_type}.txt'), distance)
+
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
