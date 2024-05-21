@@ -14,24 +14,25 @@ class SenzDatasetItem(object):
     def __init__(self, data_root: str, subject_index: int, ges_index: int, img_index: int, to_yuv: bool, device: torch.device) -> None:
         self.subject = subject_index
         self.label = ges_index
-        self.path_prefix = f'{data_root}/S{subject_index}/G{ges_index}/{img_index}'
+        self.rgb_path = f'./S{subject_index}/G{ges_index}/{img_index}-color.png'
+        path_prefix = f'{data_root}/S{subject_index}/G{ges_index}/{img_index}'
         self.to_yuv = to_yuv
         self.device = device
 
         # 彩色图像
-        self.color = cv2.imread(self.path_prefix + '-color.png', cv2.IMREAD_UNCHANGED)
+        self.color = cv2.imread(path_prefix + '-color.png', cv2.IMREAD_UNCHANGED)
         self.color = cv2.cvtColor(self.color, cv2.COLOR_BGR2YUV if self.to_yuv else cv2.COLOR_BGR2RGB)
         # self.color = self.color.astype(np.float32) / 256.0  # 图像归一化到 [0, 1]
         
         # 深度图像
         dw, dh = 320, 240
-        self.depth = np.fromfile(self.path_prefix + '-depth.bin', dtype=np.int16, count=dw*dh)
+        self.depth = np.fromfile(path_prefix + '-depth.bin', dtype=np.int16, count=dw*dh)
         self.depth = self.depth.reshape((dh, dw)).astype(np.float32) / 65536.0  # 图像归一化到 [0, 1]
         # self.depth = cv2.GaussianBlur(self.depth, (5, 5), 1)
         self.depth = cv2.bilateralFilter(self.depth, d=9, sigmaSpace=75, sigmaColor=0.1)
 
         # 置信度掩码
-        self.confidence = np.fromfile(self.path_prefix + '-conf.bin', dtype=np.int16, count=dw*dh).reshape((dh, dw))
+        self.confidence = np.fromfile(path_prefix + '-conf.bin', dtype=np.int16, count=dw*dh).reshape((dh, dw))
         threshold, mask = cv2.threshold(self.confidence.astype(np.uint8), 0, 65535, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
         self.confidence = self.confidence.astype(np.float32) / 65536.0  # 图像归一化到 [0, 1]
         # print(f'阈值：{threshold}')
@@ -52,6 +53,11 @@ class SenzDatasetItem(object):
             return cv2.cvtColor(self.color, cv2.COLOR_YUV2RGB) if self.to_yuv else self.color
         else:
             return cv2.cvtColor(self.color.cpu().numpy(), cv2.COLOR_YUV2RGB) if self.to_yuv else self.color.cpu().numpy()
+
+    @property
+    def color_path(self) -> str:
+        return self.rgb_path
+
 
 
 class SenzDataset(Dataset):

@@ -56,6 +56,10 @@ class RHDDatasetItem(object):
             return cv2.cvtColor(self.color, cv2.COLOR_YUV2RGB) if self.to_yuv else self.color
         else:
             return cv2.cvtColor(self.color.cpu().numpy(), cv2.COLOR_YUV2RGB) if self.to_yuv else self.color.cpu().numpy()
+    
+    @property
+    def color_path(self) -> str:
+        return os.path.join('.\\color', self.img_name)
 
 
 class RHDDataset(Dataset):

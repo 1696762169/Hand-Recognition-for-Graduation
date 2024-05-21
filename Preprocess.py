@@ -81,6 +81,35 @@ def modify_rhd_depth():
     # plt.hist(modified_depth.flatten(), bins=256)
 
     # plt.show()
+def get_bbox(dataset_type: str = 'RHD'):
+    """
+    计算数据集的边界框信息并保存
+    """
+    config = Config(dataset_type=dataset_type)
+    if dataset_type == 'RHD':
+        dataset = RHDDataset(config.dataset_root, set_type=config.dataset_split, to_tensor=False)
+    elif dataset_type == 'Senz':
+        dataset = SenzDataset(config.dataset_root, set_type=config.dataset_split, to_tensor=False)
+    else:
+        raise ValueError('Invalid dataset type')
+
+    des = os.path.join(dataset.data_root, 'bbox.txt')
+    file = open(des, 'w')
+    # file.write('label path x y w h\n')
+
+    for i in tqdm(range(len(dataset)), desc='计算边界框'):
+        sample = dataset[i]
+        n_label, labels, stats, centroids = cv2.connectedComponentsWithStats(sample.mask.astype(np.uint8), connectivity=8)
+        largest_label = np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1
+        stat = stats[largest_label]
+
+        x = (stat[cv2.CC_STAT_LEFT] + stat[cv2.CC_STAT_WIDTH] / 2) / sample.mask.shape[1]
+        y = (stat[cv2.CC_STAT_TOP] + stat[cv2.CC_STAT_HEIGHT] / 2) / sample.mask.shape[0]
+        w = stat[cv2.CC_STAT_WIDTH] / sample.mask.shape[1]
+        h = stat[cv2.CC_STAT_HEIGHT] / sample.mask.shape[0]
+        file.write(f'0 {sample.color_path} {x:.6f} {y:.6f} {w:.6f} {h:.6f}\n')
+
+    file.close()
 
 def get_good_features():
     """
@@ -223,12 +252,15 @@ if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     # 解析命令行参数
     parser = argparse.ArgumentParser()
-    parser.add_argument('--task', type=str, default='split_iso', help='要进行的预处理任务，目前仅支持rhd')
+    parser.add_argument('--task', type=str, default='bbox', help='要进行的预处理任务')
+    parser.add_argument('--dataset', type=str, default='Senz', help='要加载的数据集')
     args = parser.parse_args()
 
     task = args.task
-    if task == 'rhd':
+    if task == 'rhd_depth':
         modify_rhd_depth()
+    elif task == 'bbox':
+        get_bbox(args.dataset)
     elif task == 'good_features':
         get_good_features()
     elif task == 'senz':
