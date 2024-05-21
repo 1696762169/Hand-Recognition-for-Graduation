@@ -11,6 +11,7 @@ from scipy import stats
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 import ResNet.main as ResNet
+import YOLO.predict as YOLO
 
 from tqdm import tqdm
 from matplotlib import pyplot as plt
@@ -24,12 +25,23 @@ class CustomSegmentor(ABC):
     """
     自定义分割方法基类
     """
-    def __init__(self, model_path: str):
+    def __init__(self, 
+                 model_path: str, 
+                 roi_detection: bool=True, 
+                 roi_extended: float = 0.0):
         self.model_path = model_path
+        self.roi_detection = roi_detection
+        self.roi_extended = roi_extended
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         # 网格索引缓存
         self.grid_indices: torch.Tensor = None  # (2, w, h)
         self.flatten_indices: torch.Tensor = None  # (2, w*h)
+        # ROI检测模型
+        self.roi_model = YOLO.load_model(
+            model_path="YOLO/weights/hand_416_good.pt",
+            cfg="yolo",
+            data_cfg="YOLO/cfg/hand.data", 
+            img_size=416)
 
     @abstractmethod
     def predict_mask(self, rgb_map: torch.Tensor, depth_map: torch.Tensor, return_prob: bool=False) -> np.ndarray:
@@ -54,6 +66,27 @@ class CustomSegmentor(ABC):
         self.grid_indices = torch.stack([self.grid_x, self.grid_y], dim=0)
         self.flatten_indices = torch.stack([self.grid_x.flatten(), self.grid_y.flatten()], dim=0)
 
+    def get_roi_bbox(self, rgb_map: torch.Tensor) -> Tuple[float, float, float, float]:
+        """
+        获取ROI的边界框
+        :param rgb_map: RGB图 (h, w, 3) [0, 255]
+        :return: 边界框相对值 (x1, y1, x2, y2)
+        """
+        if not self.roi_detection:
+            return 0, 0, 1, 1
+        # 预测ROI
+        porb, bbox = YOLO.predict_image(rgb_map, self.roi_model)
+        if porb < 0.1:
+            return 0, 0, 1, 1
+        bbox = [bbox[0] / rgb_map.shape[1], bbox[1] / rgb_map.shape[0], bbox[2] / rgb_map.shape[1], bbox[3] / rgb_map.shape[0]]
+        
+        # 扩展ROI
+        if self.roi_extended != 0:
+            bbox[0] = max(0, bbox[0] - self.roi_extended)
+            bbox[1] = max(0, bbox[1] - self.roi_extended)
+            bbox[2] = min(1, bbox[2] + self.roi_extended)
+            bbox[3] = min(1, bbox[3] + self.roi_extended)
+        return tuple(bbox)
 
 class DecisionTree(object):
     """
@@ -70,6 +103,8 @@ class RDFSegmentor(CustomSegmentor):
     """
     def __init__(self, 
                  model_path: str,   # 模型路径
+                 roi_detection: bool=True, # 是否使用ROI检测
+                 roi_extended: float = 0.0, # ROI扩展比例
                  *,
                  pixel_count: int=2000,   # 每张图片采样的像素数量
                 #  threshold_split: int=50,   # 深度特征的比较阈值的分割点数目
@@ -88,7 +123,7 @@ class RDFSegmentor(CustomSegmentor):
 
                  tree_count=3,    # 随机森林的树的数量
                  ):
-        super().__init__(model_path=model_path)
+        super().__init__(model_path=model_path, roi_detection=roi_detection, roi_extended=roi_extended)
 
         # 深度特征采样参数
         self.pixel_count = pixel_count
@@ -354,11 +389,13 @@ class ResNetSegmentor(CustomSegmentor):
     """
     def __init__(self,
                  model_path: str,   # 模型路径
+                 roi_detection: bool=True, # 是否使用ROI检测
+                 roi_extended: float = 0.0, # ROI扩展比例
                  *,
                  predict_width: int=256,   # 预测输入图像宽度
                  predict_height: int=256,   # 预测输入图像高度
                  ):
-        super().__init__(model_path=model_path)
+        super().__init__(model_path=model_path, roi_detection=roi_detection, roi_extended=roi_extended)
 
         self.model = ResNet.get_model(ck_path=model_path)
         _ = self.model.eval()

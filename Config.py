@@ -51,6 +51,8 @@ class Config(object):
             segmentation = self.config['segmentation']
             self.seg_type = segmentation['type']
             self.seg_model_path = segmentation['model_path']
+            self.seg_roi_detection = segmentation['roi_detection']
+            self.seg_roi_extended = segmentation['roi_extended']
 
         # 跟踪算法参数
         if 'track_type' in self.config:

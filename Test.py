@@ -13,6 +13,7 @@ from skimage import exposure
 from fastdtw import fastdtw
 from sklearn.tree import export_text
 from matplotlib import pyplot as plt
+from matplotlib.patches import Rectangle
 from tqdm import tqdm
 import logging
 
@@ -498,7 +499,34 @@ def test_resnet_predict(dataset: SenzDataset | RHDDataset, segmentor: ResNetSegm
     return_prob = False
     pred, center = segmentor.predict_mask_impl(sample.color, sample.depth, return_prob)
     __show_segmentation_result(sample, pred, not return_prob)
+def test_predict_roi(dataset: SenzDataset | RHDDataset, segmentor: RDFSegmentor | ResNetSegmentor):
+    """
+    测试预测手部ROI区域
+    """
+    sample_idx = np.random.randint(len(dataset))
+    sample = dataset[sample_idx]
 
+    # 预测结果
+    bbox = segmentor.get_roi_bbox(sample.color)
+    bbox = (int(bbox[0] * sample.color.shape[1]), int(bbox[1] * sample.color.shape[0]),
+            int(bbox[2] * sample.color.shape[1]), int(bbox[3] * sample.color.shape[0]))
+    img = sample.color.cpu().numpy()
+
+    plt.suptitle(f"预测手部ROI区域 样本 {sample_idx}")
+    plt.subplot(1, 2, 1)
+    plt.imshow(img)
+    plt.title("原图")
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(img[bbox[1]:bbox[3], bbox[0]:bbox[2]])
+    plt.title(f"ROI区域\n{bbox}")
+    # x_min, y_min, x_max, y_max = bbox
+    # width = x_max - x_min
+    # height = y_max - y_min
+    # rect = Rectangle((x_min, y_min), width, height, linewidth=1, edgecolor='r', facecolor='none')
+    # plt.gca().add_patch(rect)
+
+    plt.show()
 
 def test_contour_extract(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker):
     """

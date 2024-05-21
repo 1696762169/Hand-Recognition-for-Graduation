@@ -1,6 +1,8 @@
 segmentation:    # 分割参数
   type: 'RDF'    # 分割算法类型
   model_path: ''    # 模型路径
+  roi_detection: True    # 是否提前检测ROI区域
+  roi_extended: 0.02    # 扩展ROI区域的比例
   params:
     pixel_count: 2000    # 每张图片采样的像素数量
     # threshold_split: 50    # 深度特征的比较阈值的分割点数目（暂时废弃）

@@ -55,8 +55,8 @@ from Classification import DTWClassifier
 import Test
 import Preprocess
 
-dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
-# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
+# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
+dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
 segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
 tracker_type: Literal['3DSC'] = '3DSC'
 classifier_type: Literal['DTW'] = 'DTW'
@@ -75,9 +75,9 @@ def create_dataset(config: Config):
 def create_segmentor(config: Config):
     params = config.get_seg_params()
     if config.seg_type == 'RDF':
-        return RDFSegmentor(config.seg_model_path,**params)
+        return RDFSegmentor(config.seg_model_path, config.seg_roi_detection, config.seg_roi_extended, **params)
     elif config.seg_type == 'ResNet':
-        return ResNetSegmentor(config.seg_model_path, **params)
+        return ResNetSegmentor(config.seg_model_path, config.seg_roi_detection, config.seg_roi_extended, **params)
     else:
         raise ValueError('不支持的分割器类型: {}'.format(config.seg_type))
     
@@ -138,6 +138,7 @@ if __name__ == '__main__':
 
     # Test.test_direct_method(dataset)
     # Test.test_resnet_predict(dataset, segmentor)
+    Test.test_predict_roi(dataset, segmentor)
 
     # Test.test_iso_dataset_depth_range(dataset)
 
@@ -165,4 +166,4 @@ if __name__ == '__main__':
     # Test.test_feature_load(dataset, tracker, classifier, feature_dir)
 
     # Test.test_dtw_distance(dataset, tracker, classifier)
-    Test.test_custom_fastdtw(dataset, feature_dir)
+    # Test.test_custom_fastdtw(dataset, feature_dir)
