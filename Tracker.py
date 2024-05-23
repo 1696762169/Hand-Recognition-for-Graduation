@@ -2,6 +2,7 @@ import cv2
 import torch
 from scipy import ndimage
 from torch.nn import functional as F
+from torchvision import transforms
 import numpy as np
 
 from matplotlib import pyplot as plt
@@ -218,3 +219,81 @@ class ThreeDSCTracker:
         
         return features.permute(2, 0, 1)
 
+
+class LBPTracker(object):
+    """
+    LBP特征生产器
+    """
+    def __init__(self,
+                 *,
+                 device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+                 radius: float=2.0,
+                 n_points: int=8,):
+        
+        self.device = device
+
+        self.radius = radius
+        self.n_points = n_points
+
+        # 缓存采样偏移向量
+        angles = np.arange(0, 2*np.pi, 2*np.pi/self.n_points)
+        self.offsets = np.stack((np.sin(angles), np.cos(angles)), axis=0) * self.radius
+        self.offsets = torch.from_numpy(self.offsets).float().to(self.device)
+
+    def __call__(self, depth_map: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        """
+        提取LBP描述符特征
+        :param depth_map: 深度图 (H, W) [0, 1]
+        :param mask: 预测手部掩码图 (H, W) 0/1
+        :return: LBP描述符特征 (H, W)
+        """
+        mask = transforms.Resize(depth_map.shape, interpolation=transforms.InterpolationMode.NEAREST)(mask.unsqueeze(0))[0]
+
+        # 获取采样网格
+        indices = torch.nonzero(mask, as_tuple=False).float().to(self.device)
+        if indices.shape[0] == 0:
+            return torch.zeros(depth_map.shape[0], device=self.device)
+        indices = torch.repeat_interleave(indices[:, :, None], self.n_points, dim=2) # (n_mask, 2, n_points)
+        ori_indices = indices.clone().permute(2, 0, 1).int()  # (n_points, n_mask, 2)
+        indices += self.offsets[None, :, :]
+        indices = indices.permute(2, 0, 1)[:, None, :, :] # (n_points, 1, n_mask, 2)
+
+        # 采样深度
+        stack_depths = torch.repeat_interleave(depth_map[None, :, :], self.n_points, dim=0) # (n_points, H, W)
+        shape = torch.tensor(depth_map.shape, device=self.device)[None, None, None, :]
+        norm_indices = indices / (shape * 0.5) - 1  # 坐标归一化 [-1, 1]
+        norm_indices = norm_indices.flip(3)  # 坐标反转 每对坐标 (y, x) -> (x, y)
+        sample_depths = F.grid_sample(stack_depths[:, None, :, :], norm_indices, align_corners=True)[:, 0, 0, :]    # (n_points, n_mask)
+        
+        # 还原采样的深度图形状
+        indices = indices[:, 0, :, :].int()  # (n_points, n_mask, 2)
+        valid = (indices[:, :, 0] >= 0) & (indices[:, :, 0] < depth_map.shape[0]) & (indices[:, :, 1] >= 0) & (indices[:, :, 1] < depth_map.shape[1])
+        valid_indices = ori_indices[valid, :]   # (n_valid, 2)
+        point_indices = torch.nonzero(valid)[:, 0]
+        offset_depths = torch.zeros((self.n_points, depth_map.shape[0], depth_map.shape[1]), device=self.device)  # (n_points, H, W)
+        offset_depths[point_indices, valid_indices[:, 0], valid_indices[:, 1]] = sample_depths[valid]
+
+        # 计算LBP特征
+        lbp = (offset_depths >= depth_map.unsqueeze(0)).byte()   # (n_points, H, W)
+        lbp = lbp * torch.pow(2, torch.arange(self.n_points, device=self.device))[:, None, None]
+        lbp = lbp.sum(dim=0)
+        return lbp
+        
+        col = 4
+        plt.subplot(1, col, 1)
+        plt.imshow(depth_map.cpu().numpy(), cmap='gray')
+        plt.subplot(1, col, 2)
+        plt.imshow(mask.cpu().numpy(), cmap='gray')
+        plt.subplot(1, col, 3)
+        # offset_depths = sample_depths.cpu().numpy()
+        # offset_depths = np.zeros(depth_map.shape)
+        # cpu_indices = indices[0, :, :].cpu().numpy()
+        # cpu_valid = valid[0, :].cpu().numpy()
+        # cpu_indices = cpu_indices[cpu_valid, :]
+        # offset_depths[cpu_indices[:, 0], cpu_indices[:, 1]] = sample_depths[0].cpu().numpy()[cpu_valid]
+        offset_depths = offset_depths.cpu().numpy()
+        plt.imshow(offset_depths[5], cmap='gray')
+        plt.subplot(1, col, 4)
+        plt.imshow(lbp.cpu().numpy(), cmap='gray')
+        plt.show()
+        return lbp

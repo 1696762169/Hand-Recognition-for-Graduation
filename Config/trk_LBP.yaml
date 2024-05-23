@@ -1,0 +1,5 @@
+tracking:
+  type: 'LBP'  # 追踪器类型
+  params:
+    radius: 5.0  # 采样半径
+    n_points: 8  # 采样点数

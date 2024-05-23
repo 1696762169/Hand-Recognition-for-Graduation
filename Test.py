@@ -17,11 +17,12 @@ from matplotlib.patches import Rectangle
 from tqdm import tqdm
 import logging
 
+from Config import Config
 from Dataset.RHD import RHDDataset, RHDDatasetItem
 from Dataset.IsoGD import IsoGDDataset
 from Dataset.Senz import SenzDataset, SenzDatasetItem
 from Segmentation import RDFSegmentor, DecisionTree, ResNetSegmentor
-from Tracker import ThreeDSCTracker
+from Tracker import ThreeDSCTracker, LBPTracker
 from Classification import DTWClassifier, FastDTW
 from Evaluation import SegmentationEvaluation
 from Utils import Utils
@@ -652,6 +653,37 @@ def test_descriptor_features(dataset: RHDDataset | SenzDataset, tracker: ThreeDS
 
     feature_axe = plt.subplot(1, 2, 2)
     _set_feature_axe(feature_axe, features)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def test_lbp_features(dataset: RHDDataset | SenzDataset, segmentor: RDFSegmentor | ResNetSegmentor):
+    """
+    测试LBP特征
+    """
+    # sample_idx = np.random.randint(len(dataset))
+    sample_idx = 0
+    sample = dataset[sample_idx]
+
+    from main import create_tracker
+    tracker = create_tracker(Config(track_type='LBP'))
+
+    pred = torch.tensor(sample.mask if isinstance(dataset, RHDDataset) else segmentor.predict_mask(sample.color, sample.depth))
+    lbp = tracker(sample.depth, pred)
+    # lbp = tracker(sample.depth, torch.ones_like(sample.depth, device=sample.depth.device))
+    
+    # 绘制特征图
+    plt.figure(figsize=(10, 5))
+    plt.suptitle(f"LBP特征 样本 {sample_idx}")
+
+    depth_axe = plt.subplot(1, 2, 1)
+    depth_axe.set_title("原始深度图像")
+    depth_axe.imshow(sample.depth.cpu(), cmap='gray')
+
+    feature_axe = plt.subplot(1, 2, 2)
+    feature_axe.set_title("LBP特征")
+    feature_axe.imshow(lbp.cpu().numpy(), cmap='gray')
 
     plt.tight_layout()
     plt.show()

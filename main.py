@@ -50,16 +50,16 @@ from Dataset.RHD import RHDDataset
 from Dataset.IsoGD import IsoGDDataset
 from Dataset.Senz import SenzDataset
 from Segmentation import ResNetSegmentor, RDFSegmentor
-from Tracker import ThreeDSCTracker
+from Tracker import ThreeDSCTracker, LBPTracker
 from Classification import DTWClassifier
 import Test
 import Preprocess
 
-# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
-dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
+dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
+# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
 # segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
 segmentor_type: Literal['RDF', 'ResNet'] = 'ResNet'
-tracker_type: Literal['3DSC'] = '3DSC'
+tracker_type: Literal['3DSC', 'LBP'] = 'LBP'
 classifier_type: Literal['DTW'] = 'DTW'
 
 def create_dataset(config: Config):
@@ -86,6 +86,8 @@ def create_tracker(config: Config):
     params = config.get_track_params()
     if config.track_type == '3DSC':
         return ThreeDSCTracker(**params)
+    elif config.track_type == 'LBP':
+        return LBPTracker(**params)
     else:
         raise ValueError('不支持的追踪器类型: {}'.format(config.track_type))
 
@@ -141,7 +143,7 @@ if __name__ == '__main__':
     # Test.test_resnet_predict(dataset, segmentor, return_prob=False)
     
     # Test.test_predict_roi(dataset, segmentor)
-    Test.test_segement_with_roi(dataset, segmentor, return_prob=True)
+    # Test.test_segement_with_roi(dataset, segmentor, return_prob=True)
 
     # Test.test_iso_dataset_depth_range(dataset)
 
@@ -160,6 +162,7 @@ if __name__ == '__main__':
     # Test.test_simplify_contour(dataset, tracker)
     # Test.test_descriptor_features(dataset, tracker)
 
+    Test.test_lbp_features(dataset, segmentor)
 
     feature_dir = "./Dataset/Features"
     dtw_dir = "./SegModel/DTW"
