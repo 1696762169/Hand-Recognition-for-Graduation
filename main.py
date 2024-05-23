@@ -57,7 +57,8 @@ import Preprocess
 
 # dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
 dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
-segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
+# segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
+segmentor_type: Literal['RDF', 'ResNet'] = 'ResNet'
 tracker_type: Literal['3DSC'] = '3DSC'
 classifier_type: Literal['DTW'] = 'DTW'
 
@@ -137,8 +138,10 @@ if __name__ == '__main__':
     # Test.test_senz_bilateral_filter(dataset)
 
     # Test.test_direct_method(dataset)
-    # Test.test_resnet_predict(dataset, segmentor)
-    Test.test_predict_roi(dataset, segmentor)
+    # Test.test_resnet_predict(dataset, segmentor, return_prob=False)
+    
+    # Test.test_predict_roi(dataset, segmentor)
+    Test.test_segement_with_roi(dataset, segmentor, return_prob=True)
 
     # Test.test_iso_dataset_depth_range(dataset)
 

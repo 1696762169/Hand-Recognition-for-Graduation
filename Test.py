@@ -3,7 +3,7 @@ import os
 import time
 import math
 import pickle
-from typing import List
+from typing import List, Tuple
 import torch
 from torchvision import transforms
 import pandas as pd
@@ -488,17 +488,18 @@ def test_direct_method(dataset: SenzDataset):
     axes[1].imshow(preds, cmap='gray')
     axes[1].set_title("Preds")
     plt.show()
-def test_resnet_predict(dataset: SenzDataset | RHDDataset, segmentor: ResNetSegmentor):
+def test_resnet_predict(dataset: SenzDataset | RHDDataset, segmentor: ResNetSegmentor, return_prob: bool = False):
     """
     测试 ResNet 的预测效果
     """
-    sample_idx = np.random.randint(len(dataset))
+    # sample_idx = np.random.randint(len(dataset))
+    sample_idx = 0
     sample = dataset[sample_idx]
 
     # 预测结果
-    return_prob = False
     pred, center = segmentor.predict_mask_impl(sample.color, sample.depth, return_prob)
     __show_segmentation_result(sample, pred, not return_prob)
+
 def test_predict_roi(dataset: SenzDataset | RHDDataset, segmentor: RDFSegmentor | ResNetSegmentor):
     """
     测试预测手部ROI区域
@@ -508,6 +509,7 @@ def test_predict_roi(dataset: SenzDataset | RHDDataset, segmentor: RDFSegmentor 
 
     # 预测结果
     bbox = segmentor.get_roi_bbox(sample.color)
+    bbox = bbox if bbox is not None else (0, 0, 1, 1)
     bbox = (int(bbox[0] * sample.color.shape[1]), int(bbox[1] * sample.color.shape[0]),
             int(bbox[2] * sample.color.shape[1]), int(bbox[3] * sample.color.shape[0]))
     img = sample.color.cpu().numpy()
@@ -527,6 +529,38 @@ def test_predict_roi(dataset: SenzDataset | RHDDataset, segmentor: RDFSegmentor 
     # plt.gca().add_patch(rect)
 
     plt.show()
+def test_segement_with_roi(dataset: SenzDataset | RHDDataset, segmentor: RDFSegmentor | ResNetSegmentor, return_prob: bool = False):
+    """
+    测试预测手部ROI区域后的分割效果
+    """
+    sample_idx = 0
+    sample = dataset[sample_idx]
+
+    # 直接预测结果
+    segmentor.roi_detection = False
+    pred_direct = segmentor.predict_mask(sample.color, sample.depth, return_prob)
+
+    # 使用ROI预测结果
+    segmentor.roi_detection = True
+    roi = ResNetSegmentor.bbox_to_indices(segmentor.get_roi_bbox(sample.color), sample.color.shape[:2])
+    pred_roi = segmentor.predict_mask(sample.color, sample.depth, return_prob)
+
+    # 显示预测结果
+    fig, axes = plt.subplots(2, 2, figsize=(15, 15))
+    fig.suptitle(f"预测手部ROI区域后的分割效果 样本 {sample_idx}")
+
+    axes[0, 0].imshow(sample.color.cpu().numpy())
+    axes[0, 0].set_title("原图")
+    axes[0, 1].imshow(pred_direct, cmap='gray')
+    axes[0, 1].set_title("直接预测结果")
+
+    axes[1, 0].imshow(sample.color.cpu().numpy()[roi[1]:roi[3], roi[0]:roi[2]])
+    axes[1, 0].set_title("ROI区域")
+    axes[1, 1].imshow(pred_roi, cmap='gray')
+    axes[1, 1].set_title("ROI预测结果")
+
+    plt.show()
+
 
 def test_contour_extract(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker):
     """

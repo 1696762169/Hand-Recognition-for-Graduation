@@ -1,8 +1,8 @@
 segmentation:    # 分割参数
   type: 'ResNet'    # 分割算法类型
   model_path: '.\ResNet\checkpoint\checkpoint.ckpt'    # 模型路径
-  roi_detection: True    # 是否提前检测ROI区域
-  roi_extended: 0.1    # 扩展ROI区域的比例
+  roi_detection: False    # 是否提前检测ROI区域
+  roi_extended: 0.02    # 扩展ROI区域的比例
   params: 
     predict_width: 256   # 预测输入图像宽度
     predict_height: 256   # 预测输入图像高度

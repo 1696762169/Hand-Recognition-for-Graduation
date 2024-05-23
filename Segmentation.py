@@ -47,10 +47,10 @@ class CustomSegmentor(ABC):
     def predict_mask(self, rgb_map: torch.Tensor, depth_map: torch.Tensor, return_prob: bool=False) -> np.ndarray:
         """
         预测掩码
-        :param rgb_map: RGB图 (batch_size, h, w, 3) [0, 255]
-        :param depth_map: 深度图 (batch_size, h, w) [0, 1]
+        :param rgb_map: RGB图 ([batch_size], h, w, 3) [0, 255]
+        :param depth_map: 深度图 ([batch_size], h, w) [0, 1]
         :param return_prob: 是否返回预测概率 否则返回众数（分类结果）
-        :return: 分类掩膜 (batch_size, h, w)
+        :return: 分类掩膜 ([batch_size], h, w)
         """
 
     def buffer_grid_indices(self, shape: Tuple[int, int]) -> None:
@@ -66,18 +66,18 @@ class CustomSegmentor(ABC):
         self.grid_indices = torch.stack([self.grid_x, self.grid_y], dim=0)
         self.flatten_indices = torch.stack([self.grid_x.flatten(), self.grid_y.flatten()], dim=0)
 
-    def get_roi_bbox(self, rgb_map: torch.Tensor) -> Tuple[float, float, float, float]:
+    def get_roi_bbox(self, rgb_map: torch.Tensor) -> Tuple[float, float, float, float] | None:
         """
         获取ROI的边界框
         :param rgb_map: RGB图 (h, w, 3) [0, 255]
-        :return: 边界框相对值 (x1, y1, x2, y2)
+        :return: 边界框相对值 (x1, y1, x2, y2) None表示未检测到ROI
         """
         if not self.roi_detection:
-            return 0, 0, 1, 1
+            return None
         # 预测ROI
         porb, bbox = YOLO.predict_image(rgb_map, self.roi_model)
         if porb < 0.1:
-            return 0, 0, 1, 1
+            return None
         bbox = [bbox[0] / rgb_map.shape[1], bbox[1] / rgb_map.shape[0], bbox[2] / rgb_map.shape[1], bbox[3] / rgb_map.shape[0]]
         
         # 扩展ROI
@@ -87,6 +87,28 @@ class CustomSegmentor(ABC):
             bbox[2] = min(1, bbox[2] + self.roi_extended)
             bbox[3] = min(1, bbox[3] + self.roi_extended)
         return tuple(bbox)
+    
+    @staticmethod
+    def bbox_to_indices(bbox: Tuple[float, float, float, float], shape: Tuple[int, int]) -> Tuple[int, int, int, int]:
+        """
+        边界框相对值转为索引
+        :param bbox: 边界框相对值 (x1, y1, x2, y2)
+        :param shape: 图像的尺寸 (h, w)
+        :return: 边界框索引 (x1, y1, x2, y2)
+        """
+        indices = (bbox[0] * shape[1], bbox[1] * shape[0], bbox[2] * shape[1], bbox[3] * shape[0])
+        return tuple(map(int, indices))
+    
+    def get_roi_slice(bbox: Tuple[float, float, float, float], tensor: torch.Tensor) -> torch.Tensor:
+        """
+        获取ROI的切片
+        :param bbox: 边界框相对值 (x1, y1, x2, y2)
+        :param tensor: 图像张量 (h, w, [c])
+        :return: ROI的切片 (h, w, [c])
+        """
+        shape = tensor.shape[:2]
+        idx = CustomSegmentor.bbox_to_indices(bbox, shape)
+        return tensor[idx[1]:idx[3], idx[0]:idx[2]]
 
 class DecisionTree(object):
     """
@@ -405,9 +427,29 @@ class ResNetSegmentor(CustomSegmentor):
         self.predict_height = predict_height
 
     def predict_mask(self, rgb_map: torch.Tensor, depth_map: torch.Tensor, return_prob: bool=False) -> np.ndarray:
-        pred, center = self.predict_mask_impl(rgb_map, depth_map, return_prob)
-        return pred
-
+        if not self.roi_detection:
+            pred, center = self.predict_mask_impl(rgb_map, depth_map, return_prob)
+            return pred
+        elif len(rgb_map.shape) == 4:
+            pred_list = []
+            for i in range(rgb_map.shape[0]):
+                pred, center = self.predict_mask(rgb_map[i], depth_map[i], return_prob)
+                pred_list.append(pred)
+            return np.stack(pred_list, axis=0)
+        else:
+            bbox = self.get_roi_bbox(rgb_map)
+            if bbox == None:
+                pred, center = self.predict_mask_impl(rgb_map, depth_map, return_prob)
+                return pred
+            else:
+                rgb_index = CustomSegmentor.bbox_to_indices(bbox, rgb_map.shape[-3:-1])
+                rgb = CustomSegmentor.get_roi_slice(bbox, rgb_map)
+                depth = CustomSegmentor.get_roi_slice(bbox, depth_map)
+                pred, center = self.predict_mask_impl(rgb, depth, return_prob)
+                ret = np.zeros(rgb_map.shape[:-1], dtype=pred.dtype)
+                ret[rgb_index[1]:rgb_index[3], rgb_index[0]:rgb_index[2]] = pred
+                return ret
+            
     def predict_mask_impl(self, rgb_map: torch.Tensor, depth_map: torch.Tensor, return_prob: bool=False) -> np.ndarray:
         """
         预测掩码
@@ -437,21 +479,21 @@ class ResNetSegmentor(CustomSegmentor):
         mask[prob > 0.5] = 1
 
         # 计算中心点
-        indices = torch.nonzero(mask, as_tuple=False).float()
+        # indices = torch.nonzero(mask, as_tuple=False).float()
         center = torch.zeros((prob.shape[0], 2), device=self.device)
-        for i in range(center.shape[0]):
-            i_mask = indices[:, 0] == i
-            if i_mask.sum() == 0:
-                continue
-            center[i, 0] = indices[i_mask, 1].mean().item()
-            center[i, 1] = indices[i_mask, 2].mean().item()
+        # for i in range(center.shape[0]):
+        #     i_mask = indices[:, 0] == i
+        #     if i_mask.sum() == 0:
+        #         continue
+        #     center[i, 0] = indices[i_mask, 1].mean().item()
+        #     center[i, 1] = indices[i_mask, 2].mean().item()
 
-        if single_input:
-            depth_map = depth_map[None, :, :]
-        depth_map = transforms.Resize((origin_shape[-3], origin_shape[-2]), antialias=True)(depth_map)
-        center_depth = depth_map[torch.arange(depth_map.shape[0]), center[:, 0].long(), center[:, 1].long()]
-        center_depth = center_depth[:, None, None]
-        mask |= (depth_map > (center_depth - 0.005)) & (depth_map < (center_depth + 0.005))
+        # if single_input:
+        #     depth_map = depth_map[None, :, :]
+        # depth_map = transforms.Resize((origin_shape[-3], origin_shape[-2]), antialias=True)(depth_map)
+        # center_depth = depth_map[torch.arange(depth_map.shape[0]), center[:, 0].long(), center[:, 1].long()]
+        # center_depth = center_depth[:, None, None]
+        # mask |= (depth_map > (center_depth - 0.005)) & (depth_map < (center_depth + 0.005))
 
         if single_input:
             prob = prob[0, :, :]
