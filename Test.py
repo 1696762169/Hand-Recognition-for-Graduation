@@ -670,24 +670,43 @@ def test_lbp_features(dataset: RHDDataset | SenzDataset, segmentor: RDFSegmentor
     tracker = create_tracker(Config(track_type='LBP'))
 
     pred = torch.tensor(sample.mask if isinstance(dataset, RHDDataset) else segmentor.predict_mask(sample.color, sample.depth))
-    lbp = tracker(sample.depth, pred)
+    # pred = torch.tensor(sample.mask)
+    lbp = tracker.get_lbp_map(sample.depth, pred)
     # lbp = tracker(sample.depth, torch.ones_like(sample.depth, device=sample.depth.device))
-    
+    hist = tracker.get_lbp_hist(lbp, pred)
+
     # 绘制特征图
     plt.figure(figsize=(10, 5))
     plt.suptitle(f"LBP特征 样本 {sample_idx}")
 
-    depth_axe = plt.subplot(1, 2, 1)
+    depth_axe = plt.subplot(1, 3, 1)
     depth_axe.set_title("原始深度图像")
     depth_axe.imshow(sample.depth.cpu(), cmap='gray')
 
-    feature_axe = plt.subplot(1, 2, 2)
+    feature_axe = plt.subplot(1, 3, 2)
     feature_axe.set_title("LBP特征")
     feature_axe.imshow(lbp.cpu().numpy(), cmap='gray')
+
+    hist_axe = plt.subplot(1, 3, 3)
+    hist_axe.set_title("LBP直方图")
+    hist_axe.bar(np.arange(len(hist)), hist.cpu().numpy(), width=1.0)
 
     plt.tight_layout()
     plt.show()
 
+def test_feature_effect(feature_name: str, output_dir: str = './SegModel'):
+    from main import create_dataset
+    dataset = create_dataset(Config(dataset_type='Senz'))
+
+    file_name = f'{type(dataset).__name__}_{dataset.set_type}_{feature_name}'
+    distance_path = os.path.join(output_dir, f'distance_{file_name}.npy')
+
+    labels = dataset.labels
+    distance = np.load(distance_path)
+
+    mean = DTWClassifier.get_mean_distance(distance, labels)
+    rela_dist = mean[:, 0] / mean[:, 1]
+    print(f"平均距离: {np.mean(rela_dist):.4f}")
 
 def test_dtw_distance(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker, classifier: DTWClassifier):
     """

@@ -92,6 +92,7 @@ class SenzDataset(Dataset):
             for line in f.readlines():
                 _, sub_idx, ges_idx, img_idx = line.strip().split(' ')
                 self.meta_data.append((int(sub_idx), int(ges_idx), int(img_idx)))
+        self.labels = [ges_idx for _, ges_idx, _ in self.meta_data]
 
         self.shared_list = shared_list or {}
         self.buffer_queue = []

@@ -55,11 +55,12 @@ from Classification import DTWClassifier
 import Test
 import Preprocess
 
-dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
-# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
+# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
+dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
 # segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
 segmentor_type: Literal['RDF', 'ResNet'] = 'ResNet'
-tracker_type: Literal['3DSC', 'LBP'] = 'LBP'
+tracker_type: Literal['3DSC', 'LBP'] = '3DSC'
+# tracker_type: Literal['3DSC', 'LBP'] = 'LBP'
 classifier_type: Literal['DTW'] = 'DTW'
 
 def create_dataset(config: Config):
@@ -162,14 +163,16 @@ if __name__ == '__main__':
     # Test.test_simplify_contour(dataset, tracker)
     # Test.test_descriptor_features(dataset, tracker)
 
-    Test.test_lbp_features(dataset, segmentor)
+    # Test.test_lbp_features(dataset, segmentor)
 
     feature_dir = "./Dataset/Features"
-    dtw_dir = "./SegModel/DTW"
+    dtw_dir = "./SegModel"
+    feature_name = type(tracker).__name__
     # Preprocess.calculate_features(dataset, segmentor, tracker, feature_dir)
-    # Preprocess.calculate_features_distance(dataset, classifier, feature_dir, dtw_dir)
+    # Preprocess.calculate_features_distance(dataset, classifier, feature_name, feature_dir, dtw_dir)
 
     # Test.test_feature_load(dataset, tracker, classifier, feature_dir)
+    Test.test_feature_effect(feature_name, dtw_dir)
 
     # Test.test_dtw_distance(dataset, tracker, classifier)
     # Test.test_custom_fastdtw(dataset, feature_dir)

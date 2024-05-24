@@ -242,12 +242,27 @@ class LBPTracker(object):
 
     def __call__(self, depth_map: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
-        提取LBP描述符特征
+        提取LBP特征
+        :param depth_map: 深度图 (H, W) [0, 1]
+        :param mask: 预测手部掩码图 (H, W) 0/1
+        :return: LBP描述符特征直方图 (n_bins, )
+        """
+        if mask.shape != depth_map.shape:
+            mask = transforms.Resize(depth_map.shape, interpolation=transforms.InterpolationMode.NEAREST)(mask.unsqueeze(0))[0]
+
+        lbp_map = self.get_lbp_map(depth_map, mask)
+        hist = self.get_lbp_hist(lbp_map, mask)
+        return hist
+    
+    def get_lbp_map(self, depth_map: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        """
+        获取LBP特征图
         :param depth_map: 深度图 (H, W) [0, 1]
         :param mask: 预测手部掩码图 (H, W) 0/1
         :return: LBP描述符特征 (H, W)
         """
-        mask = transforms.Resize(depth_map.shape, interpolation=transforms.InterpolationMode.NEAREST)(mask.unsqueeze(0))[0]
+        if mask.shape != depth_map.shape:
+            mask = transforms.Resize(depth_map.shape, interpolation=transforms.InterpolationMode.NEAREST)(mask.unsqueeze(0))[0]
 
         # 获取采样网格
         indices = torch.nonzero(mask, as_tuple=False).float().to(self.device)
@@ -297,3 +312,18 @@ class LBPTracker(object):
         plt.imshow(lbp.cpu().numpy(), cmap='gray')
         plt.show()
         return lbp
+    
+    def get_lbp_hist(self, lbp_map: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        """
+        获取LBP特征直方图
+        :param lbp_map: LBP特征图 (H, W)
+        :param mask: 预测手部掩码图 (H, W) 0/1
+        :return: LBP特征直方图 (n_bins, )
+        """
+        if mask.shape != lbp_map.shape:
+            mask = transforms.Resize(lbp_map.shape, interpolation=transforms.InterpolationMode.NEAREST)(mask.unsqueeze(0))[0]
+
+        n_bins = 2 ** self.n_points
+        lbp_map = lbp_map[mask > 0].int()
+        hist = torch.histc(lbp_map, bins=n_bins, min=0, max=n_bins-1)
+        return hist

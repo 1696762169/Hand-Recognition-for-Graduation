@@ -273,6 +273,32 @@ class DTWClassifier(object):
             return self.get_distance(x_features.cpu().numpy(), y_features.cpu().numpy())
     
     @staticmethod
+    def get_mean_distance(distance: np.ndarray, labels: np.ndarray | List[int]) -> np.ndarray:
+        """
+        计算组内与组间的平均距离
+        :param distance: 距离矩阵 (n_samples, n_samples)
+        :param labels: 样本标签 (n_samples)
+        :return: 各个样本的组内与组间的平均距离 (n_samples, 2)
+        """
+        if not isinstance(labels, np.ndarray):
+            labels = np.array(labels)
+        assert len(labels) == distance.shape[0] == distance.shape[1], f'距离矩阵和标签数量不匹配，距离矩阵形状：{distance.shape}，样本数量：{len(labels)}'
+        n_samples = len(labels)
+        max_label = int(np.max(labels))
+
+        # 构建分组掩膜
+        group_mask = np.arange(max_label + 1)[:, None] == labels[None, :] # (max_label, n_samples)
+
+        # 计算平均距离
+        ret = np.empty((n_samples, 2), dtype=np.float32)
+        for i in range(n_samples):
+            mask = group_mask[labels[i]]
+            ret[i, 1] = np.mean(distance[i][~mask])  # 组间距离
+            ret[i, 0] = np.mean(distance[i][mask])  # 组内距离
+
+        return ret
+
+    @staticmethod
     def __get_point_distance(x_point: np.ndarray, y_point: np.ndarray) -> float:
         """
         计算两点之间的距离
@@ -350,7 +376,8 @@ class DTWClassifier(object):
             features = []
             sample_idxs = np.empty(sample_count, dtype=np.uint32)
             cls_idxs = np.empty(sample_count, dtype=np.uint32)
-            for i in tqdm(range(sample_count), desc='加载3D-SC特征'):
+            # for i in tqdm(range(sample_count), desc='加载3D-SC特征'):
+            for i in range(sample_count):
                 byte_count = struct.unpack('I', f.read(4))[0]
                 data = f.read(byte_count)
                 feature, sample_idxs[i], cls_idxs[i] = DTWClassifier.from_byte(data)

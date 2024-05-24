@@ -17,7 +17,7 @@ from Dataset.RHD import RHDDataset
 from Dataset.IsoGD import IsoGDDataset
 from Dataset.Senz import SenzDataset
 from Segmentation import ResNetSegmentor, RDFSegmentor
-from Tracker import ThreeDSCTracker
+from Tracker import ThreeDSCTracker, LBPTracker
 from Classification import DTWClassifier
 from Evaluation import SegmentationEvaluation
 
@@ -187,7 +187,7 @@ def split_iso_to_images():
         img_path = os.path.join(des, f'{i:05d}.png')
         cv2.imwrite(img_path, sample.get_rgb_frame(i), [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
-def calculate_features(dataset: RHDDataset | SenzDataset, segmentor: ResNetSegmentor, tracker: ThreeDSCTracker, output_dir: str):
+def calculate_features(dataset: RHDDataset | SenzDataset, segmentor: ResNetSegmentor, tracker: ThreeDSCTracker | LBPTracker, output_dir: str):
     """
     获取特征向量并保存到文件中
     """
@@ -195,7 +195,7 @@ def calculate_features(dataset: RHDDataset | SenzDataset, segmentor: ResNetSegme
         os.makedirs(output_dir)
 
     no_label = isinstance(dataset, RHDDataset)
-    file = open(os.path.join(output_dir, f'features_{type(dataset).__name__}_{dataset.set_type}.bin'), 'wb')
+    file = open(os.path.join(output_dir, f'features_{type(dataset).__name__}_{dataset.set_type}_{type(tracker).__name__}.bin'), 'wb')
     
     seek_pos = []
     sample_count = len(dataset)
@@ -203,12 +203,17 @@ def calculate_features(dataset: RHDDataset | SenzDataset, segmentor: ResNetSegme
 
     for i in tqdm(range(sample_count), desc='计算特征向量'):
         sample = dataset[i]
-        pred = torch.tensor(sample.mask)
-        depth_contour = tracker.extract_contour(sample.depth, pred)
-        simplified_contour = tracker.simplify_contour(depth_contour)
-        features = tracker.get_descriptor_features(simplified_contour, sample.depth)
+        if isinstance(tracker, ThreeDSCTracker):
+            pred = torch.tensor(sample.mask)
+            depth_contour = tracker.extract_contour(sample.depth, pred)
+            simplified_contour = tracker.simplify_contour(depth_contour)
+            features = tracker.get_descriptor_features(simplified_contour, sample.depth)
+            features = features.cpu().numpy().reshape(features.shape[0], -1)
+        elif isinstance(tracker, LBPTracker):
+            pred = torch.tensor(segmentor.predict_mask(sample.color, sample.depth))
+            features = tracker(sample.depth, pred)
+            features = features.cpu().numpy()
 
-        features = features.cpu().numpy().reshape(features.shape[0], -1)
         byte = DTWClassifier.to_byte(features, i, 0 if no_label else sample.label)
         seek_pos.append(file.tell())    # 记录文件指针位置
 
@@ -222,14 +227,15 @@ def calculate_features(dataset: RHDDataset | SenzDataset, segmentor: ResNetSegme
     file.write(seek_pos.tobytes())
     file.close()
 
-def calculate_features_distance(dataset: SenzDataset, classifier: DTWClassifier, feature_dir: str, output_dir: str):
+def calculate_features_distance(dataset: SenzDataset, classifier: DTWClassifier, feature_name: str, feature_dir: str, output_dir: str):
     """
     计算特征之间的距离并保存到文件中
     """
-    file_name = f'features_{type(dataset).__name__}_{dataset.set_type}.bin'
-    if not os.path.exists(os.path.join(feature_dir, file_name)):
+    file_name = f'{type(dataset).__name__}_{dataset.set_type}_{feature_name}'
+    feature_file = f'features_{file_name}.bin'
+    if not os.path.exists(os.path.join(feature_dir, feature_file)):
         return
-    features, _, labels = DTWClassifier.from_file_all(os.path.join(feature_dir, file_name))
+    features, _, labels = DTWClassifier.from_file_all(os.path.join(feature_dir, feature_file))
     # features = [torch.from_numpy(feature.copy()).to(classifier.device) for feature in features ]
 
     n_features = len(features)
@@ -245,8 +251,10 @@ def calculate_features_distance(dataset: SenzDataset, classifier: DTWClassifier,
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    np.savetxt(os.path.join(output_dir, f'distance_{type(dataset).__name__}_{dataset.set_type}.txt'), distance)
-
+    output_bin = os.path.join(output_dir, f'distance_{file_name}.npy')
+    output_txt = os.path.join(output_dir, f'distance_{file_name}.txt')
+    np.save(output_bin, distance)
+    np.savetxt(output_txt, distance)
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
