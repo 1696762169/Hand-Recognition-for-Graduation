@@ -165,6 +165,8 @@ if __name__ == '__main__':
 
     # Test.test_lbp_features(dataset, segmentor)
 
+    Test.test_feature_invariance(tracker)
+    
     feature_dir = "./Dataset/Features"
     dtw_dir = "./SegModel"
     feature_name = type(tracker).__name__
@@ -172,7 +174,7 @@ if __name__ == '__main__':
     # Preprocess.calculate_features_distance(dataset, classifier, feature_name, feature_dir, dtw_dir)
 
     # Test.test_feature_load(dataset, tracker, classifier, feature_dir)
-    Test.test_feature_effect(feature_name, dtw_dir)
+    # Test.test_feature_effect(feature_name, dtw_dir)
 
     # Test.test_dtw_distance(dataset, tracker, classifier)
     # Test.test_custom_fastdtw(dataset, feature_dir)

@@ -3,7 +3,7 @@ import os
 import time
 import math
 import pickle
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 import torch
 from torchvision import transforms
 import pandas as pd
@@ -652,7 +652,7 @@ def test_descriptor_features(dataset: RHDDataset | SenzDataset, tracker: ThreeDS
     depth_axe.imshow(sample.depth.cpu(), cmap='gray')
 
     feature_axe = plt.subplot(1, 2, 2)
-    _set_feature_axe(feature_axe, features)
+    __set_feature_axe(feature_axe, features)
 
     plt.tight_layout()
     plt.show()
@@ -707,6 +707,52 @@ def test_feature_effect(feature_name: str, output_dir: str = './SegModel'):
     mean = DTWClassifier.get_mean_distance(distance, labels)
     rela_dist = mean[:, 0] / mean[:, 1]
     print(f"平均距离: {np.mean(rela_dist):.4f}")
+def test_feature_invariance(tracker: ThreeDSCTracker | LBPTracker):
+    """
+    测试特征不变性
+    """
+    from main import create_dataset
+    dataset = create_dataset(Config(dataset_type='RHD'))
+    # sample_idx = np.random.randint(len(dataset))
+    sample_idx = 359
+
+    def show_feature_3dsc(sample_idx: int, axes: List[plt.Axes], trans: Callable[[torch.Tensor], torch.Tensor] | None = None):
+        sample = dataset[sample_idx]
+        sample.mask = torch.tensor(sample.mask)
+        if trans is None:
+            trans = lambda x: x
+        depth_map = trans(sample.depth)
+        mask = trans(sample.mask)
+
+        contour = tracker.extract_contour(depth_map, mask)
+        sim_contour = tracker.simplify_contour(contour)
+        features = tracker.get_descriptor_features(sim_contour, depth_map)
+
+        point_idx = 30
+        point = (sim_contour[point_idx]).cpu().numpy()
+        feature = features[point_idx].cpu().numpy()
+
+        # 显示深度图
+        axes[0].imshow(depth_map.cpu().numpy(), cmap='gray')
+        # 显示mask
+        axes[1].imshow(mask.cpu().numpy(), cmap='gray')
+        axes[1].scatter([point[1]], [point[0]], c='r', linewidths=3)
+        # axes[1].scatter(sim_contour[:, 1].cpu(), sim_contour[:, 0].cpu(), c='r', linewidths=3)
+        # 显示特征
+        __set_feature_axe(axes[2], feature, show_title=False)
+
+    show_func = show_feature_3dsc if isinstance(tracker, ThreeDSCTracker) else None
+
+    row, col = 2, 3
+    fig, axes = plt.subplots(row, col, figsize=(12, 12))
+    fig.suptitle(f"特征不变性测试 样本 {sample_idx}")
+
+    show_func(sample_idx, axes[0])
+    # show_func(sample_idx, axes[1], lambda x: transforms.RandomRotation(degrees=(90,90))(x.unsqueeze(0)).squeeze(0))
+    show_func(sample_idx, axes[1], lambda x: transforms.Resize((160, 160))(x.unsqueeze(0)).squeeze(0))
+
+    plt.tight_layout()
+    plt.show()
 
 def test_dtw_distance(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker, classifier: DTWClassifier):
     """
@@ -831,12 +877,13 @@ def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: n
     plt.tight_layout()
     plt.show()
 
-def _set_feature_axe(axe: plt.Axes, features: torch.Tensor | np.ndarray):
+def __set_feature_axe(axe: plt.Axes, features: torch.Tensor | np.ndarray, show_title: bool=True):
     """
     显示特征图
     """
     image = __get_feature_image(features if len(features.shape) == 2 else features[0])
-    axe.set_title("特征图")
+    if show_title:
+        axe.set_title("特征图")
     axe.imshow(image, cmap='gray')
     axe.set_xticks(np.arange(0, features.shape[-1], 1) * 100 + 50)
     axe.set_xticklabels(np.arange(0, features.shape[-1], 1))

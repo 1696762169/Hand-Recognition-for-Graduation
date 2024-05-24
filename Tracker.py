@@ -86,9 +86,9 @@ class ThreeDSCTracker:
     def extract_contour(self, depth_map: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
         提取轮廓特征
-        :param depth_map: 深度图 (B, H, W) [0, 1]
-        :param mask: 预测手部掩码图 (B, H, W) 0/1
-        :return: 轮廓特征 (B, H, W)
+        :param depth_map: 深度图 ([B], H, W) [0, 1]
+        :param mask: 预测手部掩码图 ([B], H, W) 0/1
+        :return: 轮廓特征 ([B], H, W)
         """
         origin_shape = depth_map.shape
         single_input = len(origin_shape) == 2
@@ -123,7 +123,7 @@ class ThreeDSCTracker:
         # threshold = depth_std[:, None, None] * 0.5
         depth_mask = mask == 1
         or_scale, and_scale = 1.0, 2.0
-        depth_mask |= (depth_map > depth_mean - or_scale * threshold) & (depth_map < depth_mean + or_scale * threshold)
+        # depth_mask |= (depth_map > depth_mean - or_scale * threshold) & (depth_map < depth_mean + or_scale * threshold)
         # depth_mask &= (depth_map > depth_mean - and_scale * threshold) & (depth_map < depth_mean + and_scale * threshold)
 
         # 计算后的掩码图也仅考虑最大的区域
