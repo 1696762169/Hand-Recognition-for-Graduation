@@ -49,9 +49,9 @@ class ThreeDSCTracker:
                  *,
                  device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
                  contour_threshold=0.5,     # 应用sobel算子后被认为是轮廓像素的阈值
+                 simplify_type: str = 'ADCE',  # 轮廓简化算法
                  contour_max_points=100,  # 轮廓最大点数
                  coutour_simplify_eplision=0.0005,  # 轮廓简化精度 （与轮廓长度相乘）
-                 use_naive_simplify=False,  # 是否使用简单的轮廓简化算法
 
                  length_block=5,    # 弯曲块长度区间数量
                  angle_block=12,    # 弯曲块角度区间数量
@@ -62,7 +62,7 @@ class ThreeDSCTracker:
         self.contour_threshold = contour_threshold
         self.contour_max_points = contour_max_points
         self.coutour_simplify_eplision = coutour_simplify_eplision
-        self.use_naive_simplify = use_naive_simplify
+        self.simplify_type = simplify_type
 
         # 弯曲块参数
         self.length_block = length_block
@@ -86,9 +86,9 @@ class ThreeDSCTracker:
     def extract_contour(self, depth_map: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         """
         提取轮廓特征
-        :param depth_map: 深度图 ([B], H, W) [0, 1]
-        :param mask: 预测手部掩码图 ([B], H, W) 0/1
-        :return: 轮廓特征 ([B], H, W)
+        :param depth_map: 深度图 (H, W) [0, 1]
+        :param mask: 预测手部掩码图 (H, W) 0/1
+        :return: 轮廓坐标 (point_count, 2)
         """
         origin_shape = depth_map.shape
         single_input = len(origin_shape) == 2
@@ -98,17 +98,12 @@ class ThreeDSCTracker:
         # mask[(depth_map <= 1e-6) | (depth_map >= 1 - 1e-6)] = 0     # 过滤一些明显的非法值
         mask_sum = torch.sum(mask, dim=(1, 2))
 
-        # 计算梯度幅度
-        sobel_op = SobelOperator(self.device)
-        # grad_magnitude: torch.Tensor = sobel_op(depth_map[:, None, :, :])
-        # grad_magnitude = grad_magnitude.detach()
-
         # 原始掩码图仅考虑最大的区域
         for i in range(batch_size):
             n_label, labels, stats, centroids = cv2.connectedComponentsWithStats(mask[i].cpu().numpy().astype(np.uint8), connectivity=8)
             largest_label = np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1
             mask[i] = torch.from_numpy(labels == largest_label).byte().to(mask.device)
-        
+
         # 计算手部深度均值 与 方差 并排除深度比较远的点
         depth_mean = (torch.sum(depth_map * mask, dim=(1, 2)) / mask_sum)
         threshold = torch.zeros((batch_size), device=self.device)
@@ -131,55 +126,63 @@ class ThreeDSCTracker:
             n_label, labels, stats, centroids = cv2.connectedComponentsWithStats(depth_mask[i].cpu().numpy().astype(np.uint8), connectivity=8)
             largest_label = np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1
             depth_mask[i] = torch.from_numpy(labels == largest_label).bool().to(depth_mask.device)
-        masked_depth_map = depth_map * depth_mask.float()
+        self.__temp_mask = depth_mask[0].clone().cpu().numpy()
+        # masked_depth_map = depth_map * depth_mask.float()
 
-        # 形态学开运算
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-        masked_depth_map = cv2.morphologyEx(masked_depth_map.cpu().numpy(), cv2.MORPH_OPEN, kernel)
-        masked_depth_map = torch.from_numpy(masked_depth_map).to(self.device)
+        # # 形态学开运算
+        # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+        # masked_depth_map = cv2.morphologyEx(masked_depth_map.cpu().numpy(), cv2.MORPH_OPEN, kernel)
+        # masked_depth_map = torch.from_numpy(masked_depth_map).to(self.device)
 
-        # 计算梯度
-        grad_magnitude: torch.Tensor = sobel_op(masked_depth_map[:, None, :, :])
-        grad_magnitude = grad_magnitude.detach()
-        final_threshold = torch.mean(depth_map[depth_mask]) + 0.1
-        grad_magnitude[:, 0, :, :][depth_map > final_threshold] = 0     # 最后过滤掉可能被计入的背景值
+        # 计算轮廓
+        image = depth_mask[0].cpu().numpy().astype(np.uint8)
+        contours, hierarchy = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contour = contours[0][:, 0, :]
+        return torch.from_numpy(contour).to(depth_map.device)
+
+        # 计算梯度幅度
+        # sobel_op = SobelOperator(self.device)
+        # grad_magnitude: torch.Tensor = sobel_op(masked_depth_map[:, None, :, :])
+        # grad_magnitude = grad_magnitude.detach()
+        # final_threshold = torch.mean(depth_map[depth_mask]) + 0.1
+        # grad_magnitude[:, 0, :, :][depth_map > final_threshold] = 0     # 最后过滤掉可能被计入的背景值
 
         # return depth_mask.float()[0, :, :] if single_input else depth_mask.float()
         # return masked_depth_map[0, :, :] if single_input else masked_depth_map
-        return grad_magnitude[0, 0, :, :] if single_input else grad_magnitude[:, 0, :, :]
+        # return grad_magnitude[0, 0, :, :] if single_input else grad_magnitude[:, 0, :, :]
     
     def simplify_contour(self, contour: torch.Tensor | np.ndarray) -> torch.Tensor | np.ndarray:
         """
         简化轮廓
-        :param contour: 轮廓特征 (H, W) [0, 1]
+        :param contour: (point_count, 2)
         :return: 简化后的轮廓index (point_count, 2)
         """
         is_tensor = isinstance(contour, torch.Tensor)
         device = contour.device if is_tensor else torch.device('cpu')
         contour: np.ndarray = contour.cpu().numpy() if is_tensor else contour
 
-        # 获取contour中值为1的点的坐标
-        contour[contour < self.contour_threshold] = 0
-        contour_indices = np.nonzero(contour)
-        contour_indices = np.stack(contour_indices, axis=1)
-
         # 进行曲线简化
-        if self.use_naive_simplify:
-            current_length = contour_indices.shape[0]
+        if self.simplify_type == 'naive':
+            current_length = contour.shape[0]
             if current_length > self.contour_max_points:
                 simplified_indices = (np.arange(self.contour_max_points, dtype=np.float32) * current_length / self.contour_max_points).astype(np.int32)
-                contour_indices = contour_indices[simplified_indices, :]
-        else:
-            while contour_indices.shape[0] > self.contour_max_points:
-                last_length = contour_indices.shape[0]
-                epsilon = self.coutour_simplify_eplision * cv2.arcLength(contour_indices, closed=True)
-                contour_indices = cv2.approxPolyDP(contour_indices, epsilon=epsilon, closed=True)
-                if contour_indices.shape[0] == last_length:
+                contour = contour[simplified_indices, :]
+        elif self.simplify_type == 'cv2':
+            while contour.shape[0] > self.contour_max_points:
+                last_length = contour.shape[0]
+                epsilon = self.coutour_simplify_eplision * cv2.arcLength(contour, closed=True)
+                contour = cv2.approxPolyDP(contour, epsilon=epsilon, closed=True)
+                if contour.shape[0] == last_length:
+                    contour = contour[:, 0, :]
                     break
+        elif self.simplify_type == 'ADCE':
+            contour = self.__adce_simplify_contour(contour)
+        else:
+            raise ValueError(f'不支持的轮廓简化算法类型：{self.simplify_type}')
         
-        if len(contour_indices.shape) == 3:
-            contour_indices = contour_indices[:, 0, :]
-        return torch.from_numpy(contour_indices).to(device) if is_tensor else contour_indices
+        # if len(contour_indices.shape) == 3:
+        #     contour_indices = contour_indices[:, 0, :]
+        return torch.from_numpy(contour).to(device) if is_tensor else contour
     
     def get_descriptor_features(self, contour: torch.Tensor, depth_map: torch.Tensor) -> torch.Tensor:
         """
@@ -226,6 +229,64 @@ class ThreeDSCTracker:
         
         return features.permute(2, 0, 1)
 
+    def __adce_simplify_contour(self, contour: np.ndarray) -> np.ndarray:
+        """
+        使用ADCE算法简化轮廓
+        :param contour: 轮廓特征坐标 (point_count, 2)
+        :return: 简化后的轮廓坐标 (target_point, 2)
+        """
+        # # 获取轮廓点相对左右的向量
+        # contour_left = np.roll(contour, 1, axis=0) - contour
+        # left_length = np.linalg.norm(contour_left, ord=2, axis=1)
+        # contour_right = np.roll(contour, -1, axis=0) - contour
+        # right_length = np.linalg.norm(contour_right, ord=2, axis=1)
+
+        # # 计算向量夹角
+        # angle = np.pi - np.arccos(np.sum(contour_left * contour_right, axis=1) / (left_length * right_length))
+        
+        # # 计算轮廓点贡献 K = angle * left * right / left + right
+        # k = (angle ** 1) * left_length * right_length / (left_length + right_length)
+        # k = angle
+        # k = left_length * right_length / (left_length + right_length)
+        # # 绘制贡献度图
+        # # row, col = 2, 2
+        # # plt.subplot(row, col, 1)
+        # # plt.scatter(contour[:, 0], contour[:, 1], c=np.arange(contour.shape[0]) / contour.shape[0], linewidths=1, cmap='gray')
+        # # plt.subplot(row, col, 2)
+        # # plt.scatter(contour[:, 0], contour[:, 1], c=angle / np.pi, linewidths=1, cmap='gray')
+        # # plt.subplot(row, col, 3)
+        # # plt.scatter(contour[:, 0], contour[:, 1], c=k / k.max(), linewidths=1, cmap='gray')
+        # # plt.subplot(row, col, 4)
+        # # k = angle * left_length * right_length / (left_length + right_length)
+        # # plt.scatter(contour[:, 0], contour[:, 1], c=k / k.max(), linewidths=1, cmap='gray')
+        # # plt.show()
+
+        # # 找到贡献最大的 n 个点
+        # k_sort = np.argsort(k)[::-1]
+        # target_point = k_sort[:self.contour_max_points]
+
+        # return contour[target_point, :]
+    
+        while contour.shape[0] > self.contour_max_points:
+            contour_left = contour - np.roll(contour, 1, axis=0)
+            left_length = np.linalg.norm(contour_left, ord=2, axis=1)
+            contour_right = contour - np.roll(contour, -1, axis=0)
+            right_length = np.linalg.norm(contour_right, ord=2, axis=1)
+
+            angle = np.pi - np.arccos(np.sum(contour_left * contour_right, axis=1) / (left_length * right_length))
+            
+            k = angle * angle * left_length * right_length / (left_length + right_length)
+            k_sort = np.argsort(k)[::-1]
+            target_point = np.sort(k_sort[:int(contour.shape[0] * 0.9)])
+            contour = contour[target_point, :]
+
+            # # row, col = 1, 2
+            # plt.imshow(self.__temp_mask, cmap='gray')
+            # # k = k[target_point]
+            # plt.scatter(contour[:, 0], contour[:, 1], c='r')
+            # plt.show()
+
+        return contour
 
 class LBPTracker(object):
     """

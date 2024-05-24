@@ -2,9 +2,10 @@ tracking:
   type: '3DSC'  # 追踪器类型
   params:
     contour_threshold: 0.1  # 应用sobel算子后被认为是轮廓像素的阈值
+
+    simplify_type: 'ADCE'  # 轮廓简化算法 'naive', 'cv2', 'ADCE'
     contour_max_points: 80  # 轮廓的最大点数
-    coutour_simplify_eplision: 0.0001  # 轮廓简化的精度 （与轮廓长度相乘）
-    use_naive_simplify: True  # 是否使用简单的轮廓简化算法
+    coutour_simplify_eplision: 0.001  # 轮廓简化的精度 （与轮廓长度相乘）
 
     length_block: 5  # 弯曲块长度区间数量
     angle_block: 12  # 弯曲块角度区间数量
