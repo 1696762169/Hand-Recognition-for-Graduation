@@ -17,6 +17,9 @@ from matplotlib.patches import Rectangle
 from tqdm import tqdm
 import logging
 
+# angle1 = torch.atan2(torch.tensor([-2.0]), torch.tensor([-1.0]))
+# print(angle1.item() / torch.pi * 180)
+
 from Config import Config
 from Dataset.RHD import RHDDataset, RHDDatasetItem
 from Dataset.IsoGD import IsoGDDataset
@@ -736,8 +739,8 @@ def test_feature_invariance(tracker: ThreeDSCTracker | LBPTracker):
         axes[0].imshow(depth_map.cpu().numpy(), cmap='gray')
         # 显示mask
         axes[1].imshow(mask.cpu().numpy(), cmap='gray')
-        axes[1].scatter([point[1]], [point[0]], c='r', linewidths=3)
-        # axes[1].scatter(sim_contour[:, 1].cpu(), sim_contour[:, 0].cpu(), c='r', linewidths=3)
+        # axes[1].scatter([point[1]], [point[0]], c='r', linewidths=3)
+        axes[1].scatter(sim_contour[:, 1].cpu(), sim_contour[:, 0].cpu(), c='r', linewidths=3)
         # 显示特征
         __set_feature_axe(axes[2], feature, show_title=False)
 
@@ -748,8 +751,8 @@ def test_feature_invariance(tracker: ThreeDSCTracker | LBPTracker):
     fig.suptitle(f"特征不变性测试 样本 {sample_idx}")
 
     show_func(sample_idx, axes[0])
-    # show_func(sample_idx, axes[1], lambda x: transforms.RandomRotation(degrees=(90,90))(x.unsqueeze(0)).squeeze(0))
-    show_func(sample_idx, axes[1], lambda x: transforms.Resize((160, 160))(x.unsqueeze(0)).squeeze(0))
+    show_func(sample_idx, axes[1], lambda x: transforms.RandomRotation(degrees=(90,90))(x.unsqueeze(0)).squeeze(0))
+    # show_func(sample_idx, axes[1], lambda x: transforms.Resize((160, 160))(x.unsqueeze(0)).squeeze(0))
 
     plt.tight_layout()
     plt.show()
