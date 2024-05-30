@@ -8,4 +8,5 @@ dataset:
   
   params:
     to_yuv: False    # 是否转为YUV格式
+    filter_type: 'none'    # 过滤器类型 'none', 'gaussian', 'median', 'bilateral'
     

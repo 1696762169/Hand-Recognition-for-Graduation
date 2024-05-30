@@ -153,14 +153,145 @@ def test_senz_dataset(dataset: SenzDataset):
     plt.tight_layout()
     plt.show()
 
-def test_senz_bilateral_filter(dataset: SenzDataset):
+def test_senz_preprocessing():
+    """
+    测试Senz数据集的滤波预处理效果
+    """
+    from main import create_dataset
+    dataset: SenzDataset = create_dataset(Config(dataset_type='Senz'))
+    dataset.filter_type = 'none'
+    dataset.to_tensor = False
+    
+    sample_idx = np.random.randint(len(dataset))
+    sample_idx = 1057
+    sample = dataset[sample_idx]
+
+    show_params = True
+    show_confidence = False
+    config_list = [
+        ('gaussian', 5, 1),
+        ('median', 5),
+        ('bilateral', 5, 1, 1),
+
+        # ('bilateral', 5, 0, 0),
+        # ('bilateral', 5, 1, 1),
+        # ('bilateral', 5, 2, 2),
+        # ('bilateral', 5, 3, 3),
+        # ('bilateral', 5, 4, 4),
+        # ('bilateral', 5, 16, 16),
+        # ('bilateral', 5, 64, 64),
+        # ('bilateral', 5, 128, 128),
+
+        # ('gaussian', 5, 1),
+        # ('gaussian', 5, 4),
+        # ('gaussian', 5, 16),
+        # ('gaussian', 5, 64),
+    ]
+
+    row_num, col_num = 1, len(config_list) + (2 if show_confidence else 1)
+    temp = plt.subplots(row_num, col_num, figsize=(20, 8))
+    fig: plt.Figure = temp[0]
+    axes: List[plt.Axes] = temp[1]
+    for axe in axes:
+        axe.set_axis_off()
+    fig.suptitle(f"Senz数据集样本 {sample_idx} 预处理效果对比")
+    title_y = -0.1
+
+    # 原始图像
+    axes[0].imshow(sample.depth, cmap='gray')
+    axes[0].set_title("(a) 原始深度图", y=title_y, verticalalignment='top', fontsize=20)
+    # 置信度图像
+    if show_confidence:
+        confidence = sample.confidence
+        axes[1].imshow(confidence, cmap='jet')
+        axes[1].set_title("(b) 手部置信度", y=title_y, verticalalignment='top', fontsize=20)
+
+    for i in range(len(config_list)):
+        axe_idx = i + 2 if show_confidence else i + 1
+        axe = axes[axe_idx]
+        config = config_list[i]
+        if config[0] == 'bilateral':
+            depth = cv2.bilateralFilter(sample.depth, d=config[1], sigmaColor=config[2], sigmaSpace=config[3])
+            # depth = cv2.medianBlur(depth, 5)
+            name = f"双边滤波"
+            params = f"核大小: {config[1]}\n强度标准差: {config[2]}\n空间标准差: {config[3]}"
+        elif config[0] == 'gaussian':
+            depth = cv2.GaussianBlur(sample.depth, ksize=(config[1], config[1]), sigmaX=config[2])
+            # depth = cv2.medianBlur(depth, 5)
+            name = f"高斯滤波"
+            params = f"核大小: {config[1]}\n标准差: {config[2]}"
+        elif config[0] =='median':
+            depth = cv2.medianBlur(sample.depth, config[1])
+            # depth = cv2.bilateralFilter(depth, d=5, sigmaColor=8, sigmaSpace=8)
+            # depth = cv2.medianBlur(depth, config[1])
+            name = f"中值滤波"
+            params = f"核大小: {config[1]}"
+        else:
+            raise ValueError(f"未知的滤波类型: {config}")
+        axe.imshow(depth, cmap='gray')
+        title = f"({chr(ord('a') + axe_idx)}) {params}" if show_params else f"({chr(ord('a') + axe_idx)}) {name}"
+        axe.set_title(title, y=title_y, verticalalignment='top', fontsize=20)
+
+    plt.tight_layout()
+    plt.show()
+def test_senz_combine_filter():
+    """
+    测试Senz数据集的组合滤波效果
+    """
+    from main import create_dataset
+    dataset: SenzDataset = create_dataset(Config(dataset_type='Senz'))
+    dataset.filter_type = 'none'
+    dataset.to_tensor = False
+    
+    sample_idx = np.random.randint(len(dataset))
+    sample_idx = 1057
+    sample = dataset[sample_idx]
+
+    row_num, col_num = 1, 5
+    temp = plt.subplots(row_num, col_num, figsize=(20, 8))
+    fig: plt.Figure = temp[0]
+    axes: List[plt.Axes] = temp[1]
+    for axe in axes:
+        axe.set_axis_off()
+    fig.suptitle(f"Senz数据集样本 {sample_idx} 预处理效果对比")
+    title_y = -0.1
+
+    # 原始图像
+    axes[0].imshow(sample.depth, cmap='gray')
+    axes[0].set_title("(a) 原始深度图", y=title_y, verticalalignment='top', fontsize=20)
+    # 高斯滤波
+    depth = cv2.GaussianBlur(sample.depth, ksize=(5, 5), sigmaX=1)
+    axes[1].imshow(depth, cmap='gray')
+    axes[1].set_title("(b) 高斯滤波", y=title_y, verticalalignment='top', fontsize=20)
+    # 中值滤波
+    depth = cv2.medianBlur(sample.depth, 5)
+    axes[2].imshow(depth, cmap='gray')
+    axes[2].set_title("(c) 中值滤波", y=title_y, verticalalignment='top', fontsize=20)
+    # 高斯滤波+中值滤波
+    depth = cv2.GaussianBlur(sample.depth, ksize=(5, 5), sigmaX=1)
+    depth = cv2.medianBlur(depth, 5)
+    axes[3].imshow(depth, cmap='gray')
+    axes[3].set_title("(d) 高斯滤波+中值滤波", y=title_y, verticalalignment='top', fontsize=20)
+    # 中值滤波+高斯滤波
+    depth = cv2.medianBlur(sample.depth, 5)
+    depth = cv2.GaussianBlur(depth, ksize=(5, 5), sigmaX=1)
+    axes[4].imshow(depth, cmap='gray')
+    axes[4].set_title("(e) 中值滤波+高斯滤波", y=title_y, verticalalignment='top', fontsize=20)
+    
+    plt.tight_layout()
+    plt.show()
+def test_senz_bilateral_filter():
     """
     测试Senz数据集的双边滤波效果
     """
+    from main import create_dataset
+    dataset: SenzDataset = create_dataset(Config(dataset_type='Senz'))
+    
     sample_idx = np.random.randint(len(dataset))
     sample = dataset[sample_idx]
 
     origin_depth = sample.depth.cpu().numpy() if dataset.to_tensor else sample.depth
+    depth = cv2.bilateralFilter(origin_depth, 9, 0, 8)
 
     # sigma_space, sigma_color = torch.meshgrid(torch.arange(0, 200, 20), torch.arange(0, 8, 1))
     # col_num, row_num = sigma_space.shape
@@ -173,7 +304,7 @@ def test_senz_bilateral_filter(dataset: SenzDataset):
 
     fig, axes = plt.subplots(row_num, col_num, figsize=(20, 10))
     fig.suptitle(f"Senz数据集样本 {sample_idx} 双边滤波")
-    axes[0, 0].imshow(origin_depth, cmap='gray')
+    axes[0, 0].imshow(depth, cmap='gray')
     axes[0, 0].set_title("原始深度图")
     depth_list = [None] * pic_count
 

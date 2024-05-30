@@ -138,7 +138,9 @@ if __name__ == '__main__':
     # Test.test_rhd_dataset_depth_max(dataset)
     # Test.test_senz_dataset(dataset)
 
-    # Test.test_senz_bilateral_filter(dataset)
+    # Test.test_senz_preprocessing()
+    Test.test_senz_combine_filter()
+    # Test.test_senz_bilateral_filter()
 
     # Test.test_direct_method(dataset)
     # Test.test_resnet_predict(dataset, segmentor, return_prob=False)
@@ -165,7 +167,7 @@ if __name__ == '__main__':
 
     # Test.test_lbp_features(dataset, segmentor)
 
-    Test.test_feature_invariance(tracker)
+    # Test.test_feature_invariance(tracker)
 
     feature_dir = "./Dataset/Features"
     dtw_dir = "./SegModel"

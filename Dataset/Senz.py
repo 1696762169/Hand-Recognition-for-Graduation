@@ -11,7 +11,14 @@ from typing import Literal
 import logging
 
 class SenzDatasetItem(object):
-    def __init__(self, data_root: str, subject_index: int, ges_index: int, img_index: int, to_yuv: bool, device: torch.device) -> None:
+    def __init__(self, 
+                 data_root: str, 
+                 subject_index: int, 
+                 ges_index: int, 
+                 img_index: int, 
+                 to_yuv: bool, 
+                 filter_type: Literal['none', 'gaussian', 'median', 'bilateral'], 
+                 device: torch.device) -> None:
         self.subject = subject_index
         self.label = ges_index
         self.rgb_path = f'./S{subject_index}/G{ges_index}/{img_index}-color.png'
@@ -28,8 +35,14 @@ class SenzDatasetItem(object):
         dw, dh = 320, 240
         self.depth = np.fromfile(path_prefix + '-depth.bin', dtype=np.int16, count=dw*dh)
         self.depth = self.depth.reshape((dh, dw)).astype(np.float32) / 65536.0  # 图像归一化到 [0, 1]
-        # self.depth = cv2.GaussianBlur(self.depth, (5, 5), 1)
-        self.depth = cv2.bilateralFilter(self.depth, d=9, sigmaSpace=75, sigmaColor=0.1)
+        self.depth = cv2.GaussianBlur(self.depth, (5, 5), 1)
+        self.depth = cv2.medianBlur(self.depth, 5)
+        # if filter_type == 'gaussian':
+        #     self.depth = cv2.GaussianBlur(self.depth, (5, 5), 1)
+        # elif filter_type =='median':
+        #     self.depth = cv2.medianBlur(self.depth, 5)
+        # elif filter_type == 'bilateral':
+        #     self.depth = cv2.bilateralFilter(self.depth, d=9, sigmaSpace=75, sigmaColor=0.1)
 
         # 置信度掩码
         self.confidence = np.fromfile(path_prefix + '-conf.bin', dtype=np.int16, count=dw*dh).reshape((dh, dw))
@@ -74,6 +87,7 @@ class SenzDataset(Dataset):
                  to_tensor: bool = True,
                  *,
                  to_yuv: bool = False,
+                 filter_type: Literal['none', 'gaussian', 'median', 'bilateral'] = 'none',
 
                  device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
                  buffer_size: int = 0,
@@ -83,6 +97,7 @@ class SenzDataset(Dataset):
         self.set_type = set_type
         self.to_tensor = to_tensor
         self.to_yuv = to_yuv
+        self.filter_type = filter_type
         self.device = device
         self.buffer_size = buffer_size
 
@@ -115,5 +130,6 @@ class SenzDataset(Dataset):
     def __load_item(self, index) -> SenzDatasetItem:
         meta_data = self.meta_data[index]
         logging.debug(f'正在加载Senz3D数据集：{index}')
-        item = SenzDatasetItem(self.data_root, meta_data[0], meta_data[1], meta_data[2], self.to_yuv, self.device)
+        device = self.device if self.to_tensor else None
+        item = SenzDatasetItem(self.data_root, meta_data[0], meta_data[1], meta_data[2], self.to_yuv, self.filter_type, device)
         return item
