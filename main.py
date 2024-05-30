@@ -55,8 +55,8 @@ from Classification import DTWClassifier
 import Test
 import Preprocess
 
-# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
-dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
+dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
+# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
 # segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
 segmentor_type: Literal['RDF', 'ResNet'] = 'ResNet'
 tracker_type: Literal['3DSC', 'LBP'] = '3DSC'
@@ -166,7 +166,7 @@ if __name__ == '__main__':
     # Test.test_lbp_features(dataset, segmentor)
 
     Test.test_feature_invariance(tracker)
-    
+
     feature_dir = "./Dataset/Features"
     dtw_dir = "./SegModel"
     feature_name = type(tracker).__name__

@@ -83,7 +83,7 @@ class ThreeDSCTracker:
         features = self.get_descriptor_features(simplified_contour, depth_map)
         return features
 
-    def extract_contour(self, depth_map: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    def extract_contour(self, depth_map: torch.Tensor, mask: torch.Tensor, cv2_method=cv2.CHAIN_APPROX_NONE) -> np.ndarray:
         """
         提取轮廓特征
         :param depth_map: 深度图 (H, W) [0, 1]
@@ -136,9 +136,9 @@ class ThreeDSCTracker:
 
         # 计算轮廓
         image = depth_mask[0].cpu().numpy().astype(np.uint8)
-        contours, hierarchy = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contours, hierarchy = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2_method)
         contour = contours[0][:, 0, :]
-        return torch.from_numpy(contour).to(depth_map.device)
+        return contour
 
         # 计算梯度幅度
         # sobel_op = SobelOperator(self.device)
@@ -184,7 +184,7 @@ class ThreeDSCTracker:
         #     contour_indices = contour_indices[:, 0, :]
         return torch.from_numpy(contour).to(device) if is_tensor else contour
     
-    def get_descriptor_features(self, contour: torch.Tensor, depth_map: torch.Tensor) -> torch.Tensor:
+    def get_descriptor_features(self, contour: np.ndarray, depth_map: torch.Tensor) -> torch.Tensor:
         """
         获取3D-SC描述符特征
         :param contour: 轮廓特征 (point_count, 2)
@@ -192,7 +192,7 @@ class ThreeDSCTracker:
         :return: 3D-SC描述符特征 (point_count, length_block, angle_block)
         """
         point_count = contour.shape[0]
-        contour = contour.int().to(self.device)
+        contour = torch.from_numpy(contour).int().to(self.device)
         depth_map = depth_map.float().to(self.device)
 
         # 计算各个边缘点之间的距离向量 (dy, dx, dz)
@@ -207,9 +207,9 @@ class ThreeDSCTracker:
 
         # 极坐标角度
         angle = torch.atan2(diff_vec[0], diff_vec[1])
-        center = contour.float().mean(dim=0).to(self.device)
-        offset_angle = torch.atan2(contour[:, 0] - center[0], contour[:, 1] - center[1]) # (point_count,)
-        angle = angle - offset_angle[:, None]   # 计算相对中心点偏移角度
+        # center = contour.float().mean(dim=0).to(self.device)
+        # offset_angle = torch.atan2(contour[:, 0] - center[0], contour[:, 1] - center[1]) # (point_count,)
+        # angle = angle - offset_angle[:, None]   # 计算相对中心点偏移角度
         # angle = torch.where(angle < -np.pi, angle + 2*np.pi, angle)
         # angle = torch.where(angle > np.pi, angle - 2*np.pi, angle)
 
@@ -275,16 +275,29 @@ class ThreeDSCTracker:
 
             angle = np.pi - np.arccos(np.sum(contour_left * contour_right, axis=1) / (left_length * right_length))
             
-            k = angle * angle * left_length * right_length / (left_length + right_length)
+            k = angle * left_length * right_length / (left_length + right_length)
             k_sort = np.argsort(k)[::-1]
             target_point = np.sort(k_sort[:int(contour.shape[0] * 0.9)])
-            contour = contour[target_point, :]
 
-            # # row, col = 1, 2
-            # plt.imshow(self.__temp_mask, cmap='gray')
-            # # k = k[target_point]
-            # plt.scatter(contour[:, 0], contour[:, 1], c='r')
-            # plt.show()
+            # if contour.shape[0] < self.contour_max_points * 1.5:
+            if False:
+                row, col = 1, 2
+                plt.figure(figsize=(20, 12))
+                plt.subplot(row, col, 1)
+                plt.imshow(self.__temp_mask, cmap='gray')
+                for i in range(len(contour)):
+                    plt.text(contour[i][0], contour[i][1], str(i), color='r', fontsize=10)
+                # plt.scatter(contour[:, 0], contour[:, 1], c='r')
+                plt.subplot(row, col, 2)
+                plt.imshow(self.__temp_mask, cmap='gray')
+                for i in range(len(contour)):
+                    # plt.text(contour[i][0], contour[i][1], f'{left_length[i]:.2f}', color='r', fontsize=10)
+                    # plt.text(contour[i][0], contour[i][1], f'{right_length[i]:.2f}', color='r', fontsize=10)
+                    plt.text(contour[i][0], contour[i][1], f'{angle[i] * 180 / np.pi:.2f}', color='r', fontsize=10)
+                    # plt.text(contour[i][0], contour[i][1], f'{k[i]:.2f}', color='r', fontsize=10)
+                plt.show()
+
+            contour = contour[target_point, :]
 
         return contour
 

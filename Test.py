@@ -575,7 +575,9 @@ def test_contour_extract(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTra
     sample = dataset[sample_idx]
 
     pred = torch.tensor(sample.mask)
-    depth_contour = tracker.extract_contour(sample.depth, pred)
+    contour_idx = tracker.extract_contour(sample.depth, pred)
+    contour = np.zeros_like(sample.depth.cpu())
+    contour[contour_idx[:, 0], contour_idx[:, 1]] = 1
     # color = transforms.Grayscale(num_output_channels=1)(sample.color.permute(2, 0, 1))[0]
     # color_contour = tracker.extract_contour(color, pred)
     # depth_contour = tracker.extract_contour(pred, pred)
@@ -589,7 +591,7 @@ def test_contour_extract(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTra
     axes[1].imshow(sample.mask, cmap='gray')
     axes[1].set_title("Ground Truth")
 
-    axes[2].imshow(depth_contour.cpu().numpy(), cmap='gray')
+    axes[2].imshow(contour.cpu().numpy(), cmap='gray')
     axes[2].set_title("深度图轮廓提取")
     # axes[3].imshow(color_contour.cpu().numpy(), cmap='gray')
     # axes[3].set_title("彩色图轮廓提取")
@@ -600,38 +602,37 @@ def test_simplify_contour(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTr
     """
     测试简化轮廓算法效果
     """
-    sample_idx = np.random.randint(len(dataset))
-    # sample_idx = 0
+    # sample_idx = np.random.randint(len(dataset))
+    sample_idx = 94
     sample = dataset[sample_idx]
 
     pred = torch.tensor(sample.mask)
-    depth_contour = tracker.extract_contour(sample.depth, pred)
-    simplified_contour = tracker.simplify_contour(depth_contour).cpu().numpy()
-
-    new_contour = np.zeros_like(sample.depth.cpu())
-    new_contour[simplified_contour[:, 0], simplified_contour[:, 1]] = 1
-
-    contour_depth = sample.depth.cpu().numpy()[simplified_contour[:, 0], simplified_contour[:, 1]]
+    contour = tracker.extract_contour(sample.depth, pred)
+    cv2_sim_contour = tracker.extract_contour(sample.depth, pred, cv2_method=cv2.CHAIN_APPROX_SIMPLE)
     
-    figure_count = 3
-    plt.figure(figsize=(15, 7))
-    plt.title(f"简化轮廓算法效果 样本 {sample_idx}")
-    plt.subplot(1, figure_count, 1)
-    plt.imshow(sample.depth.cpu(), cmap='gray')
-    plt.suptitle("原始深度图像")
+    target_points = [300, 150, 80, 50, 30]
+    row_count = 1
+    col_count = 3
+    col_count = len(target_points) + 1
+    plt.figure(figsize=(22, 12))
+    plt.suptitle(f"简化轮廓算法效果 样本 {sample_idx}")
 
-    plt.subplot(1, figure_count, 2)
-    plt.imshow(depth_contour.cpu(), cmap='gray')
-    plt.suptitle("提取的轮廓")
+    # mask_axe = plt.subplot(row_count, col_count, 1)
+    # mask_axe.imshow(sample.mask, cmap='gray')
+    # mask_axe.set_title("手部分割掩膜")
 
-    plt.subplot(1, figure_count, 3)
-    plt.imshow(new_contour, cmap='gray')
-    plt.suptitle("简化后的轮廓")
+    origin_axe = plt.subplot(row_count, col_count, 1)
+    __set_contour_axe(origin_axe, contour, f"原始轮廓\n点数量：{contour.shape[0]}")
+    # cv2_axe = plt.subplot(row_count, col_count, 3)
+    # __set_contour_axe(cv2_axe, cv2_sim_contour, f"cv2 简化轮廓\n点数量：{cv2_sim_contour.shape[0]}")
 
-    # plt.subplot(1, figure_count, 4)
-    # plt.bar(np.arange(len(contour_depth)), contour_depth)
-    # plt.suptitle("轮廓的深度")
+    for i in range(len(target_points)):
+        tracker.contour_max_points = target_points[i]
+        sim_contour = tracker.simplify_contour(contour)
+        new_axe = plt.subplot(row_count, col_count, i + (row_count - 1) * col_count + 2)
+        __set_contour_axe(new_axe, sim_contour, f"点数量：{sim_contour.shape[0]}")
 
+    plt.tight_layout()
     plt.show()
 def test_descriptor_features(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker):
     """
@@ -717,44 +718,64 @@ def test_feature_invariance(tracker: ThreeDSCTracker | LBPTracker):
     from main import create_dataset
     dataset = create_dataset(Config(dataset_type='RHD'))
     # sample_idx = np.random.randint(len(dataset))
-    sample_idx = 359
 
-    def show_feature_3dsc(sample_idx: int, axes: List[plt.Axes], trans: Callable[[torch.Tensor], torch.Tensor] | None = None):
+    def show_feature_3dsc(sample_idx: int, axes: List[plt.Axes], trans: Callable[[torch.Tensor], torch.Tensor] | None = None, point_idx: int = 0, dont_trans_mask: bool = False):
         sample = dataset[sample_idx]
         sample.mask = torch.tensor(sample.mask)
         if trans is None:
             trans = lambda x: x
-        depth_map = trans(sample.depth)
-        mask = trans(sample.mask)
+        depth_map = trans(sample.depth.unsqueeze(0)).squeeze(0)
+        mask = sample.mask if dont_trans_mask else trans(sample.mask.unsqueeze(0)).squeeze(0)
 
         contour = tracker.extract_contour(depth_map, mask)
         sim_contour = tracker.simplify_contour(contour)
         features = tracker.get_descriptor_features(sim_contour, depth_map)
 
-        point_idx = 30
-        point = (sim_contour[point_idx]).cpu().numpy()
+        point = sim_contour[point_idx]
         feature = features[point_idx].cpu().numpy()
 
         # 显示深度图
-        axes[0].imshow(depth_map.cpu().numpy(), cmap='gray')
+        axes[0].imshow(depth_map.cpu().numpy(), cmap='gray', vmin=0, vmax=1)
+        axes[0].set_xlim(0, sample.depth.shape[1])
+        axes[0].set_ylim(sample.depth.shape[0], 0)
+        axes[0].set_axis_off()
         # 显示mask
         axes[1].imshow(mask.cpu().numpy(), cmap='gray')
-        # axes[1].scatter([point[1]], [point[0]], c='r', linewidths=3)
-        axes[1].scatter(sim_contour[:, 1].cpu(), sim_contour[:, 0].cpu(), c='r', linewidths=3)
+        axes[1].scatter([point[0]], [point[1]], c='r', linewidths=3)
+        axes[1].set_xlim(0, sample.mask.shape[1])
+        axes[1].set_ylim(sample.mask.shape[0], 0)
+        axes[1].set_axis_off()
+        # axes[1].set_axis_off()
+        # axes[1].scatter(sim_contour[:, 0].cpu(), sim_contour[:, 1].cpu(), c='r', linewidths=3)
+        # axes[1].scatter(contour[:, 0].cpu(), contour[:, 1].cpu(), c='r', linewidths=3)
+        # for i in range(len(sim_contour)):
+        #     axes[1].text(sim_contour[i][0], sim_contour[i][1], str(i), color='r', fontsize=10)
         # 显示特征
         __set_feature_axe(axes[2], feature, show_title=False)
 
     show_func = show_feature_3dsc if isinstance(tracker, ThreeDSCTracker) else None
 
     row, col = 2, 3
+    axes = [0, 1, 2, 3, 4]
+    sample_idx = 359
     fig, axes = plt.subplots(row, col, figsize=(12, 12))
-    fig.suptitle(f"特征不变性测试 样本 {sample_idx}")
+    # fig.suptitle(f"特征不变性测试 样本 {sample_idx}")
 
-    show_func(sample_idx, axes[0])
-    show_func(sample_idx, axes[1], lambda x: transforms.RandomRotation(degrees=(90,90))(x.unsqueeze(0)).squeeze(0))
-    # show_func(sample_idx, axes[1], lambda x: transforms.Resize((160, 160))(x.unsqueeze(0)).squeeze(0))
+    show_func(sample_idx, axes[0], None, 31)
+    show_func(sample_idx, axes[1], transforms.RandomRotation(degrees=(90,90)), 71)
+    # show_func(sample_idx, axes[2], transforms.Resize((160, 160), antialias=False), 27)
+    # show_func(sample_idx, axes[3], lambda x: torch.clamp_max(x + 0.5, 1.0), 31, dont_trans_mask=True)
+    # show_func(sample_idx, axes[4], transforms.Compose([
+    #     transforms.Resize((160, 160), antialias=False),
+    #     transforms.RandomRotation(degrees=(90,90)),
+    #     lambda x: torch.clamp_max(x + 0.5, 1.0)
+    # ]), 67)
 
-    plt.tight_layout()
+    # plt.tight_layout()
+    axes[0, 0].set_title("深度图像")
+    axes[0, 1].set_title("手部掩膜与轮廓点")
+    axes[0, 2].set_title("3D-SC特征")
+    plt.subplots_adjust(wspace=0.05)
     plt.show()
 
 def test_dtw_distance(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker, classifier: DTWClassifier):
@@ -774,8 +795,8 @@ def test_dtw_distance(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracke
         features = tracker.get_descriptor_features(simplified_contour, sample.depth)
         features_list.append(features)
         
-    flatten_features = [features.reshape(features.shape[0], -1) for features in features_list]
-    distance, path = classifier.get_distance_gpu(flatten_features[0], flatten_features[1])
+    flatten_features = [features.cpu().numpy().reshape(features.shape[0], -1) for features in features_list]
+    distance, path = classifier.get_distance(flatten_features[0], flatten_features[1])
     
     # 将path 展示为折线图
     # plt.figure(figsize=(10, 5))
@@ -879,6 +900,25 @@ def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: n
 
     plt.tight_layout()
     plt.show()
+
+def __set_contour_axe(axe: plt.Axes, contour: np.ndarray, title: str | None = "轮廓图", shape: Tuple[int, int] | None = None, fontsize: int = 20):
+    """
+    显示轮廓图
+    """
+    if title is not None:
+        axe.set_title(title, fontsize=fontsize)
+    axe.plot(list(contour[:, 0]) + [contour[0, 0]], list(contour[:, 1]) + [contour[0, 1]], 
+             marker='o', markersize=4, 
+             linewidth=1, color='black', 
+             scalex=False, scaley=False)
+    if shape is not None:
+        axe.set_xlim(0, shape[1])
+        axe.set_ylim(shape[0], 0)
+    else:
+        axe.set_xlim(contour[:, 0].min() - 10, contour[:, 0].max() + 10)
+        axe.set_ylim(contour[:, 1].max() + 10, contour[:, 1].min() - 10)
+    axe.set_aspect('equal')
+    axe.axis('off')
 
 def __set_feature_axe(axe: plt.Axes, features: torch.Tensor | np.ndarray, show_title: bool=True):
     """
