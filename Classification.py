@@ -226,7 +226,7 @@ class DTWClassifier(object):
     def __init__(self,
                  *,
                  device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-                 dtw_type: Literal['fastdtw', 'tslearn', 'custom'] = 'tslearn',
+                 dtw_type: Literal['fastdtw', 'tslearn', 'tslearn-fake', 'custom'] = 'tslearn',
                  ):
         self.device = device
         self.dtw_type = dtw_type
@@ -240,8 +240,7 @@ class DTWClassifier(object):
         """
 
         if self.dtw_type == 'tslearn':
-            # path, distance = ts.dtw_path_from_metric(x_features, y_features, metric=DTWClassifier.__get_point_distance)
-            path, distance = ts.dtw_path(x_features, y_features)
+            path, distance = ts.dtw_path_from_metric(x_features, y_features, metric=DTWClassifier.__get_point_distance)
             return distance, np.array(path)
         elif self.dtw_type == 'fastdtw':
             distance, path = fastdtw(x_features, y_features, dist=DTWClassifier.__get_point_distance)
@@ -252,6 +251,10 @@ class DTWClassifier(object):
             # distance, path = FastDTW.fastdtw(x_features, y_features, dist=DTWClassifier.__get_point_distance)
             path_ret = np.array(path).T
             return distance, path_ret
+        elif self.dtw_type == 'tslearn-fake':
+            # 假的距离计算，仅用于测试
+            path, distance = ts.dtw_path(x_features, y_features)
+            return distance, np.array(path)
         else:
             raise ValueError(f'不支持的DTW实现类型: {self.dtw_type}')
 

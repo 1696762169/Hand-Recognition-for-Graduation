@@ -999,6 +999,28 @@ def test_feature_load(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracke
 
     features, _, _ = DTWClassifier.from_file_all(file_path)
     assert np.abs(features[sample_idx] - calc_features).max() < 1e-6, "特征计算结果与加载结果不一致"
+def test_fastdtw_speed(dataset: RHDDataset | SenzDataset, feature_dir: str):
+    """
+    测试fastdtw算法速度
+    """
+    file_name = f'{type(dataset).__name__}_{dataset.set_type}_ThreeDSCTracker'
+    feature_file = f"features_{file_name}.bin"
+    features, _, _ = DTWClassifier.from_file_all(os.path.join(feature_dir, feature_file))
+
+    classifier = DTWClassifier()
+    def test_speed(dtw_type: str):
+        classifier.dtw_type = dtw_type
+        timer = time.perf_counter()
+        for i in tqdm(range(10000), desc=f"测试{dtw_type}算法速度"):
+            idx = np.random.randint(len(features), size=2)
+            classifier.get_distance(features[idx[0]], features[idx[1]])
+        timer = time.perf_counter() - timer
+        print(f"{dtw_type}算法耗时: {timer:.4f}s")
+
+    test_speed('fastdtw')
+    test_speed('custom')
+    test_speed('tslearn')
+    test_speed('tslearn-fake')
 
 def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: np.ndarray, binary: bool = True):
     """

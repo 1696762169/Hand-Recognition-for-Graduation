@@ -55,8 +55,8 @@ from Classification import DTWClassifier
 import Test
 import Preprocess
 
-dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
-# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
+# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
+dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
 # segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
 segmentor_type: Literal['RDF', 'ResNet'] = 'ResNet'
 tracker_type: Literal['3DSC', 'LBP'] = '3DSC'
@@ -139,7 +139,7 @@ if __name__ == '__main__':
     # Test.test_senz_dataset(dataset)
 
     # Test.test_senz_preprocessing()
-    Test.test_senz_combine_filter()
+    # Test.test_senz_combine_filter()
     # Test.test_senz_bilateral_filter()
 
     # Test.test_direct_method(dataset)
@@ -177,6 +177,12 @@ if __name__ == '__main__':
 
     # Test.test_feature_load(dataset, tracker, classifier, feature_dir)
     # Test.test_feature_effect(feature_name, dtw_dir)
+    # Test.test_fastdtw_speed(dataset, feature_dir)
+
+    bar = plt.bar(range(5), [596.06, 187.41, 80.85, 203.56, 5.26], color=['#23aaf2', '#23aaf2', '#138a07', '#138a07', '#2f3a4c'])
+    plt.bar_label(bar, labels=[596.06, 187.41, 80.85, 203.56, 5.26], padding=3)
+    plt.xticks(range(5), ['tslearn', 'fastdtw', '本文\nnumpy', '本文\npytorch', 'tslearn\n欧氏距离'])
+    plt.show()
 
     # Test.test_dtw_distance(dataset, tracker, classifier)
     # Test.test_custom_fastdtw(dataset, feature_dir)
