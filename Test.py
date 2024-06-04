@@ -695,7 +695,46 @@ def test_segement_with_roi(dataset: SenzDataset | RHDDataset, segmentor: RDFSegm
     axes[1, 1].set_title("ROI预测结果")
 
     plt.show()
+def test_segement_result():
+    """
+    测试分割结果
+    """
+    from main import create_dataset, create_segmentor
+    dataset = create_dataset(Config(dataset_type='RHD'))
+    segmentor = create_segmentor(Config(seg_type='RDF'))
 
+    # 数据准备：两组方法的值
+    values_ran = [0.24, 0.34, 0.67, 0.72, 0.73]
+    values_auto = [0.36, 0.41, 0.68, 0.77, 0.79]
+
+    # 横坐标标签
+    categories = ['T=1\n（决策树）', 'T=5', 'T=20', 'T=50', 'T=100']
+    x_ticks = np.arange(len(categories))
+    bar_width = 0.35
+
+    # 设置颜色
+    color_ran = '#23aaf2'
+    color_auto = '#138a07'
+
+    # 绘制柱状图
+    plt.bar(x_ticks, values_ran, bar_width, color=color_ran, label='随机特征')
+    # 通过设置位置偏移bar_width来实现分组效果
+    plt.bar([x + bar_width for x in x_ticks], values_auto, bar_width, color=color_auto, label='自动特征选择算法')
+
+    # 添加图例
+    plt.legend()
+
+    # 添加标题和标签
+    plt.title('随机森林分割法对比实验结果')
+    plt.xlabel('随机森林树数量')
+    plt.ylabel('平均IoU')
+    plt.ylim(0, 1)
+
+    # 显示x轴的分类标签
+    plt.xticks([x + bar_width / 2 for x in x_ticks], categories)
+
+    # 显示图表
+    plt.show()
 
 def test_contour_extract(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker):
     """
@@ -1021,6 +1060,74 @@ def test_fastdtw_speed(dataset: RHDDataset | SenzDataset, feature_dir: str):
     test_speed('custom')
     test_speed('tslearn')
     test_speed('tslearn-fake')
+
+    # fig = plt.subplot(1, 1, 1)
+    # bar = plt.bar(range(5), [596.06, 187.41, 80.85, 203.56, 5.26], color=['#23aaf2', '#23aaf2', '#138a07', '#138a07', '#2f3a4c'])
+    # fig.spines['top'].set_visible(False)
+    # fig.spines['right'].set_visible(False)
+    # plt.bar_label(bar, labels=[596.06, 187.41, 80.85, 203.56, 5.26], padding=3)
+    # plt.xticks(range(5), ['tslearn', 'fastdtw', '本文\nnumpy', '本文\npytorch', 'tslearn\n欧氏距离'])
+    # plt.show()
+
+def test_classify_result():
+    """
+    测试分类结果
+    """
+    from main import create_dataset, create_classifier
+    dataset = create_dataset(Config(dataset_type='Senz'))
+    classifier = create_classifier(Config(cls_type='DTW'))
+
+    # 统计数据
+    n_cls = 11
+    n_round = 10
+    test_ratio = 0.3
+
+    data = np.zeros((n_cls, n_cls)) # data[实际标签, 预测标签]
+    for _ in range(n_round):
+        idx = np.arange(len(dataset))
+        np.random.shuffle(idx)
+        test_idx = idx[:int(len(dataset) * test_ratio)]
+        labels = [dataset.labels[i] for i in test_idx]
+        for label in labels:
+            pred_label = classifier(label)
+            data[label - 1, pred_label - 1] += 1
+
+    accuracy = np.trace(data) / data.sum()
+    data = data / data.sum(axis=1, keepdims=True) * 100
+    data_str = [[(f'{data[i, j]:.2f}' if data[i, j]!= 0 else '')
+                    for j in range(n_cls)] 
+                    for i in range(n_cls)]
+    
+    # 绘制表格
+    temp = plt.subplots()
+    plt.suptitle(f"分类结果 准确率: {accuracy * 100:.4f}%")
+    ax: plt.Axes = temp[1]
+    colLabels = [f'P{i + 1}' for i in range(n_cls)]
+    rowLabels = [f'G{i + 1}' for i in range(n_cls)]
+    table = ax.table(cellText=data_str, 
+                     colLabels=colLabels, rowLabels=rowLabels, 
+                     loc='center')
+
+    # 调整表格比例
+    table.scale(1, 1)
+    # 调整颜色
+    for cls in range(n_cls):
+        cell = table[cls + 1, cls]
+        cell.set_color('#138a07')
+        cell.set_fill(True)
+        cell.set_text_props(color='white')
+
+    # 隐藏列标题和行标题的边框
+    celld = table.get_celld()
+    for cell in celld:
+        if cell[0] == 0 or cell[1] == -1:
+            celld[cell].set_edgecolor('none')
+    # 隐藏原有的坐标轴
+    ax.axis('off')
+
+    # 显示图表
+    plt.show()
+
 
 def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: np.ndarray, binary: bool = True):
     """

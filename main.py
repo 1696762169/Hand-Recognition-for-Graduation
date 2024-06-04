@@ -147,6 +147,7 @@ if __name__ == '__main__':
     
     # Test.test_predict_roi(dataset, segmentor)
     # Test.test_segement_with_roi(dataset, segmentor, return_prob=True)
+    Test.test_segement_result()
 
     # Test.test_iso_dataset_depth_range(dataset)
 
@@ -179,10 +180,7 @@ if __name__ == '__main__':
     # Test.test_feature_effect(feature_name, dtw_dir)
     # Test.test_fastdtw_speed(dataset, feature_dir)
 
-    bar = plt.bar(range(5), [596.06, 187.41, 80.85, 203.56, 5.26], color=['#23aaf2', '#23aaf2', '#138a07', '#138a07', '#2f3a4c'])
-    plt.bar_label(bar, labels=[596.06, 187.41, 80.85, 203.56, 5.26], padding=3)
-    plt.xticks(range(5), ['tslearn', 'fastdtw', '本文\nnumpy', '本文\npytorch', 'tslearn\n欧氏距离'])
-    plt.show()
-
     # Test.test_dtw_distance(dataset, tracker, classifier)
     # Test.test_custom_fastdtw(dataset, feature_dir)
+
+    # Test.test_classify_result()
