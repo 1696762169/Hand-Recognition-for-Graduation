@@ -55,8 +55,8 @@ from Classification import DTWClassifier
 import Test
 import Preprocess
 
-# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
-dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
+dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'RHD'
+# dataset_type: Literal['RHD', 'IsoGD', 'Senz'] = 'Senz'
 # segmentor_type: Literal['RDF', 'ResNet'] = 'RDF'
 segmentor_type: Literal['RDF', 'ResNet'] = 'ResNet'
 tracker_type: Literal['3DSC', 'LBP'] = '3DSC'
@@ -143,11 +143,12 @@ if __name__ == '__main__':
     # Test.test_senz_bilateral_filter()
 
     # Test.test_direct_method(dataset)
-    # Test.test_resnet_predict(dataset, segmentor, return_prob=False)
+    # Test.test_resnet_predict(dataset, return_prob=False)
     
     # Test.test_predict_roi(dataset, segmentor)
     # Test.test_segement_with_roi(dataset, segmentor, return_prob=True)
-    Test.test_segement_result()
+    # Test.test_segment_result()
+    Test.test_segment_all_result(dataset, show_good=False, show_bad=True)
 
     # Test.test_iso_dataset_depth_range(dataset)
 

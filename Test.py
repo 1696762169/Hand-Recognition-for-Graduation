@@ -623,17 +623,21 @@ def test_direct_method(dataset: SenzDataset):
     axes[1].imshow(preds, cmap='gray')
     axes[1].set_title("Preds")
     plt.show()
-def test_resnet_predict(dataset: SenzDataset | RHDDataset, segmentor: ResNetSegmentor, return_prob: bool = False):
+def test_resnet_predict(dataset: SenzDataset | RHDDataset, return_prob: bool = False):
     """
     测试 ResNet 的预测效果
     """
-    # sample_idx = np.random.randint(len(dataset))
-    sample_idx = 0
+    from main import create_segmentor
+    segmentor = create_segmentor(Config(seg_type='ResNet'))
+
+    sample_idx = np.random.randint(len(dataset))
+    # sample_idx = 0
     sample = dataset[sample_idx]
+    print(f"测试样本 {sample_idx}")
 
     # 预测结果
     pred, center = segmentor.predict_mask_impl(sample.color, sample.depth, return_prob)
-    __show_segmentation_result(sample, pred, not return_prob)
+    __show_segmentation_result(sample, pred, not return_prob, True)
 
 def test_predict_roi(dataset: SenzDataset | RHDDataset, segmentor: RDFSegmentor | ResNetSegmentor):
     """
@@ -695,7 +699,7 @@ def test_segement_with_roi(dataset: SenzDataset | RHDDataset, segmentor: RDFSegm
     axes[1, 1].set_title("ROI预测结果")
 
     plt.show()
-def test_segement_result():
+def test_segment_result():
     """
     测试分割结果
     """
@@ -735,6 +739,65 @@ def test_segement_result():
 
     # 显示图表
     plt.show()
+def test_segment_all_result(dataset: RHDDataset | SenzDataset, force_predict: bool = False, show_overall: bool = False, show_good: bool = False, show_bad: bool = False):
+    """
+    测试所有样本的分割效果
+    """
+    from main import create_segmentor
+    segmentor = create_segmentor(Config(seg_type='ResNet'))
+
+    file = open('SegModel/ResNet/result.csv', 'r+', encoding='utf-8')
+    iou_dict = {}
+    for line in file.readlines():
+        line = line.strip().split(',')
+        iou_dict[int(line[0])] = float(line[1])
+
+    # sample_count = len(dataset)
+    # # sample_count = 1000
+    # for i in tqdm(range(sample_count), desc="测试样本"):
+    #     sample = dataset[i]
+    #     if i not in iou_dict or force_predict:
+    #         pred, center = segmentor.predict_mask_impl(sample.color, sample.depth, return_prob=False)
+    #         iou = SegmentationEvaluation.mean_iou_static(pred, sample.mask)
+    #         iou_dict[i] = iou
+    #         file.write(f"{i},{iou}\n")
+    # file.close()
+
+    sorted_iou_dict = sorted(iou_dict.items(), key=lambda item: item[1])
+    if show_overall:
+        plt.plot(np.arange(len(sorted_iou_dict)), [x[1] for x in sorted_iou_dict])
+        plt.ylim(0, 1.0)
+        plt.title("ResNet 分割效果")
+        plt.xlabel("样本编号")
+        plt.ylabel("平均 IoU")
+        plt.show()
+
+    if show_good:
+        sample_idxs, pred_list = [], []
+        search_idx = len(sorted_iou_dict) - 1
+        while len(sample_idxs) < 10:
+            sample_idx = sorted_iou_dict[search_idx][0]
+            if dataset.is_single_hand(sample_idx):
+                sample_idxs.append(sample_idx)
+            search_idx -= 1
+        for idx in sample_idxs:
+            sample = dataset[idx]
+            pred, center = segmentor.predict_mask_impl(sample.color, sample.depth, return_prob=False)
+            pred_list.append(pred)
+        __show_multi_segmentation_result(dataset, sample_idxs, pred_list)
+    
+    if show_bad:
+        sample_idxs, pred_list = [], []
+        while len(sample_idxs) < 10:
+            sample_idx = sorted_iou_dict[np.random.randint(len(sorted_iou_dict))][0]
+            if iou_dict[sample_idx] < 0.5 and iou_dict[sample_idx] > 0.3 and dataset.is_single_hand(sample_idx):
+                sample_idxs.append(sample_idx)
+        sample_idxs = [12270, 13032, 39736]
+        for idx in sample_idxs:
+            sample = dataset[idx]
+            pred, center = segmentor.predict_mask_impl(sample.color, sample.depth, return_prob=False)
+            pred_list.append(pred)
+        __show_multi_segmentation_result(dataset, sample_idxs, pred_list, trans=True)
 
 def test_contour_extract(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTracker):
     """
@@ -1129,7 +1192,7 @@ def test_classify_result():
     plt.show()
 
 
-def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: np.ndarray, binary: bool = True):
+def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: np.ndarray, binary: bool = True, color: bool = False):
     """
     显示分割结果
     :param sample: 样本数据
@@ -1140,26 +1203,59 @@ def __show_segmentation_result(sample: RHDDatasetItem | SenzDatasetItem, pred: n
         mask_color = sample.confidence
     else:
         mask_color = np.zeros((sample.mask.shape[0], sample.mask.shape[1], 3), dtype=np.uint8)
-        mask_color[sample.mask == 0] = [255, 255, 255]  # 背景
-        mask_color[sample.mask == 1] = [0, 255, 0]  # 手部
+        mask_color[sample.mask == 0] = [0, 0, 0]  # 背景
+        mask_color[sample.mask == 1] = [255, 255, 255]  # 手部
 
     if binary:
         pred_color = np.zeros((pred.shape[0], pred.shape[1], 3), dtype=np.uint8)
-        pred_color[pred == 0] = [255, 255, 255]  # 背景
-        pred_color[pred == 1] = [0, 255, 0]  # 手部
+        pred_color[pred == 0] = [0, 0, 0]  # 背景
+        pred_color[pred == 1] = [255, 255, 255]  # 手部
     else:
         pred_color = pred / 255.0
 
-    fig, axes = plt.subplots(1, 3, figsize=(10, 5))
-    axes[0].imshow(sample.depth.cpu(), cmap='gray')
+    temp = plt.subplots(1, 3, figsize=(10, 5))
+    iou = SegmentationEvaluation.mean_iou_static(pred, sample.mask)
+    temp[0].suptitle(f"分割结果 IoU: {iou:.4f}")
+    axes: List[plt.Axes] = temp[1]
+    if color:
+        axes[0].imshow(sample.color_rgb)
+    else:
+        axes[0].imshow(sample.depth.cpu(), cmap='gray')
     axes[0].set_title("原始图像")
     axes[1].imshow(mask_color, cmap='gray' if mask_is_conf else None)
     axes[1].set_title("Ground Truth")
     axes[2].imshow(pred_color, cmap='gray' if not binary else None)
     axes[2].set_title("预测结果")
+    for ax in axes:
+        ax.set_axis_off()
 
     plt.tight_layout()
     plt.show()
+def __show_multi_segmentation_result(dataset: RHDDataset, sample_idx: List[int], pred: List[np.ndarray], trans: bool = False):
+    """
+    显示多个分割结果
+    """
+    assert len(sample_idx) == len(pred), "预测结果数量不正确"
+    n_row, n_col = 4, len(sample_idx)
+    if trans:
+        n_row, n_col = n_col, n_row
+
+    fig, axes = plt.subplots(n_row, n_col, figsize=(22, 12))
+    for i, idx in enumerate(sample_idx):
+        sample = dataset[idx]
+        sample_axes: List[plt.Axes] = axes[i] if trans else axes[:, i]
+        sample_axes[0].imshow(sample.color_rgb)
+        if not trans:
+            sample_axes[0].set_title(f"样本 {idx}")
+        sample_axes[1].imshow(sample.depth.cpu(), cmap='gray')
+        sample_axes[2].imshow(sample.mask, cmap='gray')
+        sample_axes[3].imshow(pred[i], cmap='gray')
+        for ax in sample_axes:
+            ax.set_axis_off()
+    
+    plt.tight_layout()
+    plt.show()
+
 
 def __set_contour_axe(axe: plt.Axes, contour: np.ndarray, title: str | None = "轮廓图", shape: Tuple[int, int] | None = None, fontsize: int = 20):
     """

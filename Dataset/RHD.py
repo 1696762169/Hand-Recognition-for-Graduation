@@ -128,3 +128,12 @@ class RHDDataset(Dataset):
                               self.to_yuv, 
                               self.device if self.to_tensor else None, 
                               self.use_modified_depth)
+
+    def is_single_hand(self, index: int) -> bool:
+        """
+        判断指定索引的样本是否只包含一个手部区域
+        """
+        sample = self[index]
+        mask = sample.mask
+        n_label, labels, stats, centroids = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=8)
+        return n_label == 2
