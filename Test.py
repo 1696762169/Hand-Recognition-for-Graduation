@@ -893,7 +893,101 @@ def test_descriptor_features(dataset: RHDDataset | SenzDataset, tracker: ThreeDS
 
     plt.tight_layout()
     plt.show()
+def test_feature_direction(dataset: RHDDataset | SenzDataset):
+    """
+    测试特征方向
+    """
+    from main import create_tracker
+    tracker = create_tracker(Config(track_type='3DSC'))
 
+    sample_idx = np.random.randint(len(dataset))
+    sample_idx = 359
+    sample = dataset[sample_idx]
+
+    def set_direction(axe: plt.Axes, start: np.ndarray, offset: np.ndarray, mask: np.ndarray | None = None, arrow_mask: np.ndarray | None = None):
+        """
+        显示特征方向
+        :param axes: 图像对象
+        :param start: 箭头起点, (point_count, 2)
+        :param offset: 箭头向量, (point_count, 2)
+        :param mask: 掩膜图像, (H, W)
+        :param arrow_mask: 选择显示箭头
+        """
+        mask = mask if mask is not None else sample.mask
+        X, Y = start[:, 0], start[:, 1]
+        offset = offset / np.linalg.norm(offset, axis=1, keepdims=True) * (mask.shape[0] // 18)
+        U, V = offset[:, 0], offset[:, 1]
+        axe.plot(np.concatenate([X, X[0:1]]), np.concatenate([Y, Y[0:1]]), color='black', marker=',')
+        if arrow_mask is not None:
+            X, Y, U, V = X[arrow_mask], Y[arrow_mask], U[arrow_mask], V[arrow_mask]
+        axe.quiver(X, Y, U, V, 
+                    angles='xy', scale_units='xy', scale=1, 
+                    color='red', 
+                    units='width', width=0.005, headlength=2, headwidth=2)
+        axe.set_axis_off()
+        axe.set_aspect('equal')
+        # axe.set_xlim(0, mask.shape[1])
+        # axe.set_ylim(mask.shape[0], 0)
+        # axe.imshow(mask, cmap='gray')
+
+    def set_direction_comp(axes: List[plt.Axes], contour: np.ndarray, mask: np.ndarray, show_title: bool = False, arrow_mask: np.ndarray | None = None):
+        """
+        显示不同方法获取的特征方向对比
+        :param axes: 图像对象列表
+        :param contour: 轮廓点, (point_count, 2)
+        :param mask: 掩膜图像, (H, W)
+        """
+        idx = 0
+        for_c = np.concatenate([contour, contour[0:1]], axis=0)
+        for_offset = for_c[1:] - for_c[:-1]
+        # set_direction(axes[idx], contour, for_offset, mask, arrow_mask)
+        # if show_title:
+        #     axes[idx].set_title("前向差分")
+        # idx += 1
+
+        back_c = np.concatenate([contour[-2:-1], contour], axis=0)
+        back_offset = back_c[:-1] - back_c[1:]
+        # set_direction(axes[idx], contour, back_offset, mask, arrow_mask)
+        # if show_title:
+        #     axes[idx].set_title("后向差分")
+        # idx += 1
+
+        mid_offset = for_c[1:] - back_c[:-1]
+        for_offset = for_offset / np.linalg.norm(for_offset, axis=1, keepdims=True)
+        back_offset = back_offset / np.linalg.norm(back_offset, axis=1, keepdims=True)
+        # mid_offset = (for_offset + back_offset) / 2
+        # mid_offset = np.stack([-mid_offset[:, 1], mid_offset[:, 0]], axis=1)
+        # mid_offset = (for_offset - back_offset) / 2
+        set_direction(axes[idx], contour, mid_offset, mask, arrow_mask)
+        if show_title:
+            axes[idx].set_title("中值差分")
+        idx += 1
+
+        center = contour.mean(axis=0)
+        center_offset = contour - center
+        set_direction(axes[idx], contour, center_offset, mask, arrow_mask)
+        if show_title:
+            axes[idx].set_title("质心参考点")
+        idx += 1
+
+    temp = plt.subplots(2, 4, figsize=(20, 10), sharex=True, sharey=True)
+    axes: List[plt.Axes] = temp[1]
+    temp[0].suptitle(f"特征方向测试 样本 {sample_idx}")
+    
+    arrow_mask = np.random.choice(tracker.contour_max_points, 10, replace=False)
+    arrow_mask = None
+    for i in range(4):
+        rotation = lambda x: transforms.RandomRotation(degrees=(90 * i,90 * i))(x.unsqueeze(0)).squeeze(0)
+        pred: torch.Tensor = rotation(torch.tensor(sample.mask))
+        depth: torch.Tensor  = rotation(sample.depth)
+        contour = tracker.extract_contour(depth, pred)
+        sim_contour = tracker.simplify_contour(contour)
+        # 噪音干扰
+        sim_contour = sim_contour.astype(np.float64) + np.random.normal(1, 1, size=sim_contour.shape)
+        sim_contour = sim_contour.astype(np.int32)
+        set_direction_comp(axes[:, i], sim_contour, pred.cpu().numpy(), False, arrow_mask)
+
+    plt.show()
 
 def test_lbp_features(dataset: RHDDataset | SenzDataset, segmentor: RDFSegmentor | ResNetSegmentor):
     """

@@ -148,7 +148,7 @@ if __name__ == '__main__':
     # Test.test_predict_roi(dataset, segmentor)
     # Test.test_segement_with_roi(dataset, segmentor, return_prob=True)
     # Test.test_segment_result()
-    Test.test_segment_all_result(dataset, show_good=False, show_bad=True)
+    # Test.test_segment_all_result(dataset, show_good=False, show_bad=True)
 
     # Test.test_iso_dataset_depth_range(dataset)
 
@@ -166,6 +166,7 @@ if __name__ == '__main__':
     # Test.test_contour_extract(dataset, tracker)
     # Test.test_simplify_contour(dataset, tracker)
     # Test.test_descriptor_features(dataset, tracker)
+    Test.test_feature_direction(dataset)
 
     # Test.test_lbp_features(dataset, segmentor)
 
