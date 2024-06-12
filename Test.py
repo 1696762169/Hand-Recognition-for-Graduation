@@ -126,10 +126,15 @@ def test_iso_dataset_depth_range(dataset: IsoGDDataset, sample_idx: int = -1):
     plt.show()
 
 
-def test_senz_dataset(dataset: SenzDataset):
+def test_senz_dataset():
     """
     测试Senz数据集导入效果
     """ 
+    from main import create_dataset
+    dataset: SenzDataset = create_dataset(Config(dataset_type='Senz'))
+    dataset.filter_type = 'none'
+    dataset.to_tensor = False
+
     sample_idx = np.random.randint(len(dataset))
     sample = dataset[sample_idx]
 
@@ -138,7 +143,7 @@ def test_senz_dataset(dataset: SenzDataset):
 
     axes[0, 0].imshow(sample.color_rgb)
     axes[0, 0].set_title("RGB")
-    axes[1, 0].imshow(sample.depth.cpu(), cmap='gray')
+    axes[1, 0].imshow(sample.depth, cmap='gray')
     axes[1, 0].set_title("Depth")
     axes[2, 0].imshow(sample.confidence, cmap='gray')
     axes[2, 0].set_title("Confidence")
@@ -1082,7 +1087,7 @@ def test_feature_invariance(tracker: ThreeDSCTracker | LBPTracker):
 
     show_func = show_feature_3dsc if isinstance(tracker, ThreeDSCTracker) else None
 
-    row, col = 2, 3
+    row, col = 5, 3
     axes = [0, 1, 2, 3, 4]
     sample_idx = 359
     fig, axes = plt.subplots(row, col, figsize=(12, 12))
@@ -1090,13 +1095,13 @@ def test_feature_invariance(tracker: ThreeDSCTracker | LBPTracker):
 
     show_func(sample_idx, axes[0], None, 31)
     show_func(sample_idx, axes[1], transforms.RandomRotation(degrees=(90,90)), 71)
-    # show_func(sample_idx, axes[2], transforms.Resize((160, 160), antialias=False), 27)
-    # show_func(sample_idx, axes[3], lambda x: torch.clamp_max(x + 0.5, 1.0), 31, dont_trans_mask=True)
-    # show_func(sample_idx, axes[4], transforms.Compose([
-    #     transforms.Resize((160, 160), antialias=False),
-    #     transforms.RandomRotation(degrees=(90,90)),
-    #     lambda x: torch.clamp_max(x + 0.5, 1.0)
-    # ]), 67)
+    show_func(sample_idx, axes[2], transforms.Resize((160, 160), antialias=False), 27)
+    show_func(sample_idx, axes[3], lambda x: torch.clamp_max(x + 0.5, 1.0), 31, dont_trans_mask=True)
+    show_func(sample_idx, axes[4], transforms.Compose([
+        transforms.Resize((160, 160), antialias=False),
+        transforms.RandomRotation(degrees=(90,90)),
+        lambda x: torch.clamp_max(x + 0.5, 1.0)
+    ]), 67)
 
     # plt.tight_layout()
     axes[0, 0].set_title("深度图像")

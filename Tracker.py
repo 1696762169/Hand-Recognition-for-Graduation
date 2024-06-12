@@ -207,11 +207,11 @@ class ThreeDSCTracker:
 
         # 极坐标角度
         angle = torch.atan2(diff_vec[0], diff_vec[1])
-        # center = contour.float().mean(dim=0).to(self.device)
-        # offset_angle = torch.atan2(contour[:, 0] - center[0], contour[:, 1] - center[1]) # (point_count,)
-        # angle = angle - offset_angle[:, None]   # 计算相对中心点偏移角度
-        # angle = torch.where(angle < -np.pi, angle + 2*np.pi, angle)
-        # angle = torch.where(angle > np.pi, angle - 2*np.pi, angle)
+        center = contour.float().mean(dim=0).to(self.device)
+        offset_angle = torch.atan2(contour[:, 0] - center[0], contour[:, 1] - center[1]) # (point_count,)
+        angle = angle - offset_angle[:, None]   # 计算相对中心点偏移角度
+        angle = torch.where(angle < -np.pi, angle + 2*np.pi, angle)
+        angle = torch.where(angle > np.pi, angle - 2*np.pi, angle)
 
         # 计算弯曲块 将数值离散化为特征区间
         angle_bins = torch.linspace(-torch.pi - 1e-4, torch.pi, self.angle_block + 1, device=self.device)
