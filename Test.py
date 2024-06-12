@@ -17,14 +17,11 @@ from matplotlib.patches import Rectangle
 from tqdm import tqdm
 import logging
 
-# angle1 = torch.atan2(torch.tensor([-2.0]), torch.tensor([-1.0]))
-# print(angle1.item() / torch.pi * 180)
-
 from Config import Config
 from Dataset.RHD import RHDDataset, RHDDatasetItem
 from Dataset.IsoGD import IsoGDDataset
 from Dataset.Senz import SenzDataset, SenzDatasetItem
-from Segmentation import RDFSegmentor, DecisionTree, ResNetSegmentor
+from Segmentation import RDFSegmentor, DecisionTree
 from Tracker import ThreeDSCTracker, LBPTracker
 from Classification import DTWClassifier, FastDTW
 from Evaluation import SegmentationEvaluation
@@ -628,151 +625,35 @@ def test_direct_method(dataset: SenzDataset):
     axes[1].imshow(preds, cmap='gray')
     axes[1].set_title("Preds")
     plt.show()
-def test_resnet_predict(dataset: SenzDataset | RHDDataset, return_prob: bool = False):
-    """
-    测试 ResNet 的预测效果
-    """
-    from main import create_segmentor
-    segmentor = create_segmentor(Config(seg_type='ResNet'))
 
-    sample_idx = np.random.randint(len(dataset))
-    # sample_idx = 0
-    sample = dataset[sample_idx]
-    print(f"测试样本 {sample_idx}")
-
-    # 预测结果
-    pred, center = segmentor.predict_mask_impl(sample.color, sample.depth, return_prob)
-    __show_segmentation_result(sample, pred, not return_prob, True)
-
-def test_predict_roi(dataset: SenzDataset | RHDDataset, segmentor: RDFSegmentor | ResNetSegmentor):
-    """
-    测试预测手部ROI区域
-    """
-    sample_idx = np.random.randint(len(dataset))
-    sample = dataset[sample_idx]
-
-    # 预测结果
-    bbox = segmentor.get_roi_bbox(sample.color)
-    bbox = bbox if bbox is not None else (0, 0, 1, 1)
-    bbox = (int(bbox[0] * sample.color.shape[1]), int(bbox[1] * sample.color.shape[0]),
-            int(bbox[2] * sample.color.shape[1]), int(bbox[3] * sample.color.shape[0]))
-    img = sample.color.cpu().numpy()
-
-    plt.suptitle(f"预测手部ROI区域 样本 {sample_idx}")
-    plt.subplot(1, 2, 1)
-    plt.imshow(img)
-    plt.title("原图")
-
-    plt.subplot(1, 2, 2)
-    plt.imshow(img[bbox[1]:bbox[3], bbox[0]:bbox[2]])
-    plt.title(f"ROI区域\n{bbox}")
-    # x_min, y_min, x_max, y_max = bbox
-    # width = x_max - x_min
-    # height = y_max - y_min
-    # rect = Rectangle((x_min, y_min), width, height, linewidth=1, edgecolor='r', facecolor='none')
-    # plt.gca().add_patch(rect)
-
-    plt.show()
-def test_segement_with_roi(dataset: SenzDataset | RHDDataset, segmentor: RDFSegmentor | ResNetSegmentor, return_prob: bool = False):
-    """
-    测试预测手部ROI区域后的分割效果
-    """
-    sample_idx = 0
-    sample = dataset[sample_idx]
-
-    # 直接预测结果
-    segmentor.roi_detection = False
-    pred_direct = segmentor.predict_mask(sample.color, sample.depth, return_prob)
-
-    # 使用ROI预测结果
-    segmentor.roi_detection = True
-    roi = ResNetSegmentor.bbox_to_indices(segmentor.get_roi_bbox(sample.color), sample.color.shape[:2])
-    pred_roi = segmentor.predict_mask(sample.color, sample.depth, return_prob)
-
-    # 显示预测结果
-    fig, axes = plt.subplots(2, 2, figsize=(15, 15))
-    fig.suptitle(f"预测手部ROI区域后的分割效果 样本 {sample_idx}")
-
-    axes[0, 0].imshow(sample.color.cpu().numpy())
-    axes[0, 0].set_title("原图")
-    axes[0, 1].imshow(pred_direct, cmap='gray')
-    axes[0, 1].set_title("直接预测结果")
-
-    axes[1, 0].imshow(sample.color.cpu().numpy()[roi[1]:roi[3], roi[0]:roi[2]])
-    axes[1, 0].set_title("ROI区域")
-    axes[1, 1].imshow(pred_roi, cmap='gray')
-    axes[1, 1].set_title("ROI预测结果")
-
-    plt.show()
-def test_segment_result():
-    """
-    测试分割结果
-    """
-    from main import create_dataset, create_segmentor
-    dataset = create_dataset(Config(dataset_type='RHD'))
-    segmentor = create_segmentor(Config(seg_type='RDF'))
-
-    # 数据准备：两组方法的值
-    values_ran = [0.24, 0.34, 0.67, 0.72, 0.73]
-    values_auto = [0.36, 0.41, 0.68, 0.77, 0.79]
-
-    # 横坐标标签
-    categories = ['T=1\n（决策树）', 'T=5', 'T=20', 'T=50', 'T=100']
-    x_ticks = np.arange(len(categories))
-    bar_width = 0.35
-
-    # 设置颜色
-    color_ran = '#23aaf2'
-    color_auto = '#138a07'
-
-    # 绘制柱状图
-    plt.bar(x_ticks, values_ran, bar_width, color=color_ran, label='随机特征')
-    # 通过设置位置偏移bar_width来实现分组效果
-    plt.bar([x + bar_width for x in x_ticks], values_auto, bar_width, color=color_auto, label='自动特征选择算法')
-
-    # 添加图例
-    plt.legend()
-
-    # 添加标题和标签
-    plt.title('随机森林分割法对比实验结果')
-    plt.xlabel('随机森林树数量')
-    plt.ylabel('平均IoU')
-    plt.ylim(0, 1)
-
-    # 显示x轴的分类标签
-    plt.xticks([x + bar_width / 2 for x in x_ticks], categories)
-
-    # 显示图表
-    plt.show()
 def test_segment_all_result(dataset: RHDDataset | SenzDataset, force_predict: bool = False, show_overall: bool = False, show_good: bool = False, show_bad: bool = False):
     """
     测试所有样本的分割效果
     """
     from main import create_segmentor
-    segmentor = create_segmentor(Config(seg_type='ResNet'))
+    segmentor = create_segmentor(Config(seg_type='RDF'))
 
-    file = open('SegModel/ResNet/result.csv', 'r+', encoding='utf-8')
+    file = open('SegModel/RDF/result.csv', 'r+', encoding='utf-8')
     iou_dict = {}
     for line in file.readlines():
         line = line.strip().split(',')
         iou_dict[int(line[0])] = float(line[1])
 
-    # sample_count = len(dataset)
-    # # sample_count = 1000
-    # for i in tqdm(range(sample_count), desc="测试样本"):
-    #     sample = dataset[i]
-    #     if i not in iou_dict or force_predict:
-    #         pred, center = segmentor.predict_mask_impl(sample.color, sample.depth, return_prob=False)
-    #         iou = SegmentationEvaluation.mean_iou_static(pred, sample.mask)
-    #         iou_dict[i] = iou
-    #         file.write(f"{i},{iou}\n")
-    # file.close()
+    sample_count = len(dataset)
+    # sample_count = 1000
+    for i in tqdm(range(sample_count), desc="测试样本"):
+        sample = dataset[i]
+        if i not in iou_dict or force_predict:
+            pred, center = segmentor.predict_mask_impl(sample.color, sample.depth, return_prob=False)
+            iou = SegmentationEvaluation.mean_iou_static(pred, sample.mask)
+            iou_dict[i] = iou
+            file.write(f"{i},{iou}\n")
+    file.close()
 
     sorted_iou_dict = sorted(iou_dict.items(), key=lambda item: item[1])
     if show_overall:
         plt.plot(np.arange(len(sorted_iou_dict)), [x[1] for x in sorted_iou_dict])
         plt.ylim(0, 1.0)
-        plt.title("ResNet 分割效果")
         plt.xlabel("样本编号")
         plt.ylabel("平均 IoU")
         plt.show()
@@ -793,11 +674,12 @@ def test_segment_all_result(dataset: RHDDataset | SenzDataset, force_predict: bo
     
     if show_bad:
         sample_idxs, pred_list = [], []
+        search_idx = 0
         while len(sample_idxs) < 10:
-            sample_idx = sorted_iou_dict[np.random.randint(len(sorted_iou_dict))][0]
-            if iou_dict[sample_idx] < 0.5 and iou_dict[sample_idx] > 0.3 and dataset.is_single_hand(sample_idx):
+            sample_idx = sorted_iou_dict[search_idx][0]
+            if dataset.is_single_hand(sample_idx):
                 sample_idxs.append(sample_idx)
-        sample_idxs = [12270, 13032, 39736]
+            search_idx += 1
         for idx in sample_idxs:
             sample = dataset[idx]
             pred, center = segmentor.predict_mask_impl(sample.color, sample.depth, return_prob=False)
@@ -840,8 +722,8 @@ def test_simplify_contour(dataset: RHDDataset | SenzDataset, tracker: ThreeDSCTr
     """
     测试简化轮廓算法效果
     """
-    # sample_idx = np.random.randint(len(dataset))
-    sample_idx = 94
+    sample_idx = np.random.randint(len(dataset))
+    # sample_idx = 94
     sample = dataset[sample_idx]
 
     pred = torch.tensor(sample.mask)
@@ -906,7 +788,7 @@ def test_feature_direction(dataset: RHDDataset | SenzDataset):
     tracker = create_tracker(Config(track_type='3DSC'))
 
     sample_idx = np.random.randint(len(dataset))
-    sample_idx = 359
+    # sample_idx = 359
     sample = dataset[sample_idx]
 
     def set_direction(axe: plt.Axes, start: np.ndarray, offset: np.ndarray, mask: np.ndarray | None = None, arrow_mask: np.ndarray | None = None):
@@ -994,7 +876,7 @@ def test_feature_direction(dataset: RHDDataset | SenzDataset):
 
     plt.show()
 
-def test_lbp_features(dataset: RHDDataset | SenzDataset, segmentor: RDFSegmentor | ResNetSegmentor):
+def test_lbp_features(dataset: RHDDataset | SenzDataset, segmentor: RDFSegmentor):
     """
     测试LBP特征
     """

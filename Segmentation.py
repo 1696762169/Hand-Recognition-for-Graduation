@@ -10,8 +10,6 @@ from scipy import stats
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
-import ResNet.main as ResNet
-import YOLO.predict as YOLO
 
 from tqdm import tqdm
 from matplotlib import pyplot as plt
@@ -404,106 +402,6 @@ class RDFSegmentor(CustomSegmentor):
         y = length * torch.sin(angle)
         return torch.stack([x, y], dim=0)
     
-    
-class ResNetSegmentor(CustomSegmentor):
-    """
-    基于ResNet的语义分割器
-    """
-    def __init__(self,
-                 model_path: str,   # 模型路径
-                 roi_detection: bool=True, # 是否使用ROI检测
-                 roi_extended: float = 0.0, # ROI扩展比例
-                 *,
-                 predict_width: int=256,   # 预测输入图像宽度
-                 predict_height: int=256,   # 预测输入图像高度
-                 ):
-        super().__init__(model_path=model_path, roi_detection=roi_detection, roi_extended=roi_extended)
-
-        self.model = ResNet.get_model(ck_path=model_path)
-        _ = self.model.eval()
-        self.device = next(self.model.parameters()).device
-
-        self.predict_width = predict_width
-        self.predict_height = predict_height
-
-    def predict_mask(self, rgb_map: torch.Tensor, depth_map: torch.Tensor, return_prob: bool=False) -> np.ndarray:
-        if not self.roi_detection:
-            pred, center = self.predict_mask_impl(rgb_map, depth_map, return_prob)
-            return pred
-        elif len(rgb_map.shape) == 4:
-            pred_list = []
-            for i in range(rgb_map.shape[0]):
-                pred, center = self.predict_mask(rgb_map[i], depth_map[i], return_prob)
-                pred_list.append(pred)
-            return np.stack(pred_list, axis=0)
-        else:
-            bbox = self.get_roi_bbox(rgb_map)
-            if bbox == None:
-                pred, center = self.predict_mask_impl(rgb_map, depth_map, return_prob)
-                return pred
-            else:
-                rgb_index = CustomSegmentor.bbox_to_indices(bbox, rgb_map.shape[-3:-1])
-                rgb = CustomSegmentor.get_roi_slice(bbox, rgb_map)
-                depth = CustomSegmentor.get_roi_slice(bbox, depth_map)
-                pred, center = self.predict_mask_impl(rgb, depth, return_prob)
-                ret = np.zeros(rgb_map.shape[:-1], dtype=pred.dtype)
-                ret[rgb_index[1]:rgb_index[3], rgb_index[0]:rgb_index[2]] = pred
-                return ret
-            
-    def predict_mask_impl(self, rgb_map: torch.Tensor, depth_map: torch.Tensor, return_prob: bool=False) -> np.ndarray:
-        """
-        预测掩码
-        :param rgb_map: RGB图 (batch_size, h, w, 3) [0, 255]
-        :param depth_map: 深度图 (batch_size, h, w) [0, 1]
-        :param return_prob: 是否返回预测概率 否则返回众数（分类结果）
-        :return: (分类掩膜 (batch_size, h, w), 中心点位置 (batch_size, 2) (y, x))
-        """
-
-        # 将图像处理为模型输入
-        origin_shape = rgb_map.shape
-        single_input = len(rgb_map.shape) == 3
-        predict_map = rgb_map
-        if single_input:
-            predict_map = predict_map[None, :, :, :]
-        predict_map = predict_map.to(self.device).permute(0, 3, 1, 2).float() / 255.0
-        predict_map = transforms.Resize((self.predict_height, self.predict_width), antialias=False)(predict_map)
-        predict_map = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(predict_map)
-
-        # 进行预测
-        prob: torch.Tensor = self.model(predict_map).detach()
-        prob = F.softmax(prob, dim=1)[:, 1, :, :] # 手部掩膜概率
-
-        # 还原尺寸
-        prob = transforms.Resize((origin_shape[-3], origin_shape[-2]), antialias=False)(prob)
-        mask = torch.zeros_like(prob, dtype=torch.uint8, device=self.device)
-        mask[prob > 0.5] = 1
-
-        # 计算中心点
-        # indices = torch.nonzero(mask, as_tuple=False).float()
-        center = torch.zeros((prob.shape[0], 2), device=self.device)
-        # for i in range(center.shape[0]):
-        #     i_mask = indices[:, 0] == i
-        #     if i_mask.sum() == 0:
-        #         continue
-        #     center[i, 0] = indices[i_mask, 1].mean().item()
-        #     center[i, 1] = indices[i_mask, 2].mean().item()
-
-        # if single_input:
-        #     depth_map = depth_map[None, :, :]
-        # depth_map = transforms.Resize((origin_shape[-3], origin_shape[-2]), antialias=True)(depth_map)
-        # center_depth = depth_map[torch.arange(depth_map.shape[0]), center[:, 0].long(), center[:, 1].long()]
-        # center_depth = center_depth[:, None, None]
-        # mask |= (depth_map > (center_depth - 0.005)) & (depth_map < (center_depth + 0.005))
-
-        if single_input:
-            prob = prob[0, :, :]
-            mask = mask[0, :, :]
-            center = center[0, :]
-        prob = prob.cpu().numpy()
-        mask = mask.cpu().numpy().astype(np.uint8)
-        return prob if return_prob else mask, center
-
-
 class SkinColorSegmentation(object):
     """
     肤色分割方法

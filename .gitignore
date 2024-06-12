@@ -161,9 +161,4 @@ cython_debug/
 
 # Custom
 SegModel/
-hand3d-master/data/bin/
-Hand-Segmentation-master/model/
 /Dataset/Features/
-/YOLO/weights/
-/YOLO/samples/
-/YOLO/videos/

@@ -275,18 +275,6 @@ class DTWClassifier(object):
             return distance, None
         else:
             return self.get_distance(x_features.cpu().numpy(), y_features.cpu().numpy())
-    
-    def __call__(self, features: np.ndarray) -> int:
-        """
-        使用DTW分类器进行分类
-        :param features: 特征 (point_count, feature_count)
-        :return: 类别索引
-        """
-        mAP = 0.95
-        if np.random.random() < mAP:
-            return features
-        else:
-            return np.random.randint(self.n_cls)
 
     @staticmethod
     def get_mean_distance(distance: np.ndarray, labels: np.ndarray | List[int]) -> np.ndarray:

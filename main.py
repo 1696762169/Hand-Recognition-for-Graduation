@@ -1,31 +1,3 @@
-               #########                       
-              ############                     
-              #############                    
-             ##  ###########                   
-            ###  ###### #####                  
-            ### #######   ####                 
-           ###  ########## ####                
-          ####  ########### ####               
-         ####   ###########  #####             
-        #####   ### ########   #####           
-       #####   ###   ########   ######         
-      ######   ###  ###########   ######       
-     ######   #### ##############  ######      
-    #######  #####################  ######     
-    #######  ######################  ######    
-   #######  ###### #################  ######   
-   #######  ###### ###### #########   ######   
-   #######    ##  ######   ######     ######   
-   #######        ######    #####     #####    
-    ######        #####     #####     ####     
-     #####        ####      #####     ###      
-      #####       ###        ###      #        
-        ###       ###        ###               
-         ##       ###        ###               
-#_________#_______####_______####_____________#
-             #我们的未来没有BUG#                 
-# ref: https://github.com/leinlin/Miku-LuaProfiler/
-
 import os
 import sys
 import time
@@ -49,7 +21,7 @@ from Evaluation import Evaluation
 from Dataset.RHD import RHDDataset
 from Dataset.IsoGD import IsoGDDataset
 from Dataset.Senz import SenzDataset
-from Segmentation import ResNetSegmentor, RDFSegmentor
+from Segmentation import RDFSegmentor
 from Tracker import ThreeDSCTracker, LBPTracker
 from Classification import DTWClassifier
 import Test
@@ -78,8 +50,6 @@ def create_segmentor(config: Config):
     params = config.get_seg_params()
     if config.seg_type == 'RDF':
         return RDFSegmentor(config.seg_model_path, config.seg_roi_detection, config.seg_roi_extended, **params)
-    elif config.seg_type == 'ResNet':
-        return ResNetSegmentor(config.seg_model_path, config.seg_roi_detection, config.seg_roi_extended, **params)
     else:
         raise ValueError('不支持的分割器类型: {}'.format(config.seg_type))
     
@@ -147,7 +117,6 @@ if __name__ == '__main__':
     
     # Test.test_predict_roi(dataset, segmentor)
     # Test.test_segement_with_roi(dataset, segmentor, return_prob=True)
-    # Test.test_segment_result()
     # Test.test_segment_all_result(dataset, show_good=False, show_bad=True)
 
     # Test.test_iso_dataset_depth_range(dataset)
